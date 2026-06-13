@@ -123,6 +123,113 @@ using EntityID = uint32_t;
 constexpr EntityID INVALID_ENTITY = 0;
 ```
 
+### 3.3 Authentication & Spoofing
+
+Identity is uniquely *generated* by §3.1. It is not, by default, uniquely *provable* — a UUID v4 alone says nothing about whether the sender actually owns it. This section adds optional cryptographic binding so that claiming a `HierarchicalID` requires possessing the matching keypair.
+
+#### Threat model
+
+| Threat | Defended by | Layer |
+|---|---|---|
+| Spoofing — claim a `HierarchicalID` you don't own | Cryptographic identity binding (this section) | Identity |
+| Message tampering | Per-packet signature, verified on receipt | Identity → Transport |
+| Replay | Signature over `{tick, seq}` | Identity → Transport |
+| Sybil — mint many identities | Keypair generation + application-level allow-list | Identity + Application |
+| Trust policy — *who* is allowed in the swarm | Allow-list / attestation | Application |
+
+#### Two-mode identity
+
+**Unsigned mode** (default; research, sim, trusted single-host): `HierarchicalID` is exactly §3.1. No crypto. Cheap.
+
+**Signed mode** (production, hostile RF, mesh relay): `UnitID = BLAKE3(pub_key)[0..16]`, bound by construction to an Ed25519 keypair. Beacons and messages carry an Ed25519 signature (~64 bytes). Spoofing requires the private key.
+
+Both modes use the **same `HierarchicalID` wire layout** — what changes is whether an `IdentityKey` is associated with the sender and whether an `IdentityVerifier` is plugged into the transport on the receiver.
+
+```cpp
+namespace mith {
+
+// Companion to HierarchicalID, present only in signed mode.
+struct IdentityKey {
+    static constexpr size_t PUB_LEN = 32;   // Ed25519 public key
+    std::array<uint8_t, PUB_LEN> public_key;
+};
+
+// Plugged into TransportLayer. Default = no-op verifier (unsigned mode).
+class IdentityVerifier {
+public:
+    virtual ~IdentityVerifier() = default;
+    virtual bool verify(const HierarchicalID& claimed,
+                        std::span<const uint8_t> payload,
+                        std::span<const uint8_t> signature) const noexcept = 0;
+};
+
+} // namespace mith
+```
+
+Private keys never appear in any serialised form. They live in a sender-only `IdentityPrivateKey` struct that's never copied, moved across processes, or written to disk in cleartext (storage at rest is the deployer's responsibility — keyring, TPM, secure element).
+
+#### What this section is NOT
+
+- **Not a trust policy.** "This pubkey is allowed in our swarm" is an application-layer decision (mission config, attestation, MIS). MithAtomas verifies *that the sender owns the claimed identity*, not *that we want to listen to them*.
+- **Not encryption.** Channel confidentiality stays with the transport.
+- **Not a CA model.** Self-sovereign, no central authority. Sybil resistance is delegated to the application.
+
+Implementation lands in v0.2 alongside channel-aware transport (§16). v0.1 ships unsigned-mode types and the `IdentityVerifier` interface only; the Ed25519 implementation arrives in v0.2 as a vendored, opt-in CMake feature (`MITH_ENABLE_AUTH`).
+
+#### Entropy source
+
+UUID generation and (future) keypair generation depend on a cryptographically secure RNG. v0.1 reads directly from `std::random_device`, which is CSPRNG-backed on Linux (≥ 5.3), macOS, Windows, and recent MinGW. PRNG expansion via `mt19937` is **not** used — Mersenne Twister state can be recovered from ~625 outputs, making it unsafe once rotation modes (§3.4) generate multiple identities per robot.
+
+v0.2 (`MITH_ENABLE_AUTH`) replaces `random_device` with a vendored ChaCha20 CSPRNG, removing the platform-quality dependency entirely. If `std::random_device` is degraded or unavailable on a target, the runtime cannot safely produce identity material and terminates rather than emit predictable identifiers.
+
+### 3.4 Identity Rotation
+
+Identity is **permanent by default**: `UnitID` is generated once on first boot and persisted (§3.1). Stable identity is load-bearing for `NeighbourTable` (§7.4), `TaskAllocSystem` (§5.3), and fault tracking (§13.1).
+
+Rotation is **optional** and configurable. Trade-off: rotation breaks long-running reputation, formation memory, and task-allocation history. Use only when the deployment requires it.
+
+| Policy | Behaviour | Use case |
+|---|---|---|
+| `PERMANENT` (default) | `UnitID` stable for the robot's lifetime | Research, sim, industrial |
+| `PER_MISSION` | Rotates on `SwarmID` change or mission boundary | Mission compartmentalization |
+| `PERIODIC` | Rotates every `WorldConfig::rotation_interval_s` | Privacy / anti-tracking |
+| `EVENT_DRIVEN` | Application calls `World::rotate_identity()` | Compromise response |
+
+```cpp
+namespace mith {
+
+enum class IdentityRotationPolicy : uint8_t {
+    PERMANENT     = 0,
+    PER_MISSION   = 1,
+    PERIODIC      = 2,
+    EVENT_DRIVEN  = 3,
+};
+
+} // namespace mith
+```
+
+**Unsigned mode rotation**: generate new UUID, persist, announce via the next beacon. NeighbourTable entries for the prior ID age out naturally. No correlation — neighbours treat the rotated robot as a new one.
+
+**Signed mode rotation**: generate new keypair, derive new UUID, issue an `IdentityCertificate` signed by the *previous* private key (continuity proof), then destroy the previous private key (forward secrecy). Announce the cert via the next beacon. Receivers correlate old → new through the cert chain without losing reputation / task history.
+
+```cpp
+namespace mith {
+
+// Continuity proof binding a new identity to its predecessor.
+// Only used in signed mode.
+struct IdentityCertificate {
+    HierarchicalID                              new_id;
+    IdentityKey                                 new_key;
+    HierarchicalID                              prev_id;
+    std::array<uint8_t, 64>                     signature_by_prev;  // Ed25519
+    float                                       issued_at_s;
+};
+
+} // namespace mith
+```
+
+Implementation lands in v0.2 alongside §3.3. v0.1 ships only `IdentityRotationPolicy` and the `World::rotate_identity()` API stub.
+
 ---
 
 ## 4. Entity & Component System (ECS)
@@ -905,7 +1012,7 @@ Keeping these out of the core preserves the dependency footprint promised in §1
 - ROS 2 transport (planned, community contribution welcome)
 - Hardware abstraction layer (HAL) — MithAtomas is above the HAL. Use your platform's HAL to feed sensor data into components.
 - Centralised mission planner — MithAtomas is a swarm runtime, not a ground control station.
-- Security / encrypted comms — transport encryption is the responsibility of the transport implementation.
+- Channel encryption — confidentiality on the wire is the transport implementation's responsibility. Identity authentication is *not* deferred and is addressed in §3.3.
 
 ---
 
@@ -928,7 +1035,9 @@ The schedule below is dependency-ordered: each tier resolves blockers for the ne
 ### v0.1 — Core Runtime (current target)
 - [ ] EntityRegistry with hybrid archetype ECS
 - [ ] SystemScheduler with async DAG execution (per pre-v0.1 hazard model)
-- [ ] HierarchicalID + UUID generation
+- [ ] `mith::UUID` + `mith::HierarchicalID` (unsigned identity, §3.1)
+- [ ] `IdentityKey` data type + `IdentityVerifier` interface with no-op default (§3.3) — Ed25519 impl deferred to v0.2
+- [ ] `IdentityRotationPolicy` enum + `World::rotate_identity()` API stub (§3.4) — policy enforcement deferred to v0.2
 - [ ] ActionProvider interface + ActionExecutorSystem (per pre-v0.1 write-set decision)
 - [ ] Built-in hot components (Position, Velocity, Health, Role, BehaviourState, ActionQueue, CommBuffer)
 - [ ] SimTransport + SimBus + SimClock
@@ -939,16 +1048,19 @@ The schedule below is dependency-ordered: each tier resolves blockers for the ne
 - [ ] Unit tests for registry, scheduler, neighbour table (leveraging observability primitives for assertions)
 - [ ] CMake install target
 
-### v0.2 — Distributed Bootstrap & Channel Separation
+### v0.2 — Distributed Bootstrap, Channel Separation & Cryptographic Identity
 
-Must precede any honest multi-robot claim — the current init path in §3.1 has a hidden coordinator.
+Must precede any honest multi-robot claim — the current init path in §3.1 has a hidden coordinator, and unsigned identity is spoofable on any shared channel.
 
 - [ ] **Discovery / bootstrap protocol** — how robots acquire `SwarmID` and find peers without a mission controller. Resolves the §0 ↔ §3.1 contradiction.
 - [ ] **Channel-aware transport** — split `TransportLayer` into beacon + message transports, or define a multiplexing contract. Lets beacons ride lossy broadcast media while messages use reliable links.
+- [ ] **Cryptographic identity (signed mode)** (§3.3) — vendored Ed25519 (libsodium or hand-rolled), vendored ChaCha20 CSPRNG (replaces `std::random_device` dependency for entropy), `IdentityVerifier` Ed25519 impl, signing hook on `BeaconSystem` outbound, verification on inbound. Opt-in via `MITH_ENABLE_AUTH`.
+- [ ] **Identity rotation** (§3.4) — implement `PER_MISSION`, `PERIODIC`, `EVENT_DRIVEN` policies. `IdentityCertificate` chain in signed mode; `NeighbourTable` correlates old→new across rotation.
 - [ ] UDPMulticastTransport
 - [ ] FaultMonitorSystem + degraded mode
 - [ ] TaskAllocSystem (threshold-based, pre-partition-merge)
 - [ ] Integration test: fault injection in sim
+- [ ] Integration test: spoofing attempt rejected in signed mode
 
 ### v0.3 — Time & Space
 

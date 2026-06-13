@@ -19,18 +19,23 @@ option(MITH_BUILD_TESTS    "Build test suite"          ON)
 option(MITH_BUILD_SIM      "Build simulation harness"  ON)
 option(MITH_ENABLE_UDP     "Build UDP transport"       ON)
 option(MITH_ENABLE_SERIAL  "Build serial transport"    OFF)
+option(MITH_ENABLE_AUTH    "Build cryptographic identity (Ed25519, signed mode)" OFF)
 
-# --- Core library ---
-# Header-only INTERFACE target during the Pre-v0.1 design phase.
-# Will switch to a compiled library once src/ is populated per v0.1 roadmap.
-add_library(mith INTERFACE)
+# --- Core static library ---
+add_library(mith STATIC
+    src/identity/uuid.cpp
+    src/identity/hierarchical_id.cpp
+)
 add_library(mith::mith ALIAS mith)
 
-target_include_directories(mith INTERFACE
+target_include_directories(mith PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
-target_compile_features(mith INTERFACE cxx_std_17)
+target_compile_features(mith PUBLIC cxx_std_17)
+target_compile_options(mith PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic -Wshadow -Wconversion>
+)
 
 # --- Subdirectories (enabled as content lands) ---
 if(MITH_BUILD_EXAMPLES AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/examples/CMakeLists.txt)
