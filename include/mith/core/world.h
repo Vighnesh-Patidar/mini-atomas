@@ -24,6 +24,7 @@
 //   - create_entity() (degenerate at N=1; will be a stub returning
 //     self_id() when added)
 
+#include "mith/comms/neighbour_table.h"
 #include "mith/core/builtin_components.h"
 #include "mith/core/registry.h"
 #include "mith/core/scheduler.h"
@@ -115,9 +116,15 @@ public:
     const SystemScheduler&  scheduler() const noexcept;
 
     // Nullable — the transport-less ctor leaves this null. BeaconSystem
-    // (v0.2) consumes this via send_beacon / send_message / poll.
+    // consumes this via send_beacon / send_message / poll.
     TransportLayer*         transport() noexcept;
     const TransportLayer*   transport() const noexcept;
+
+    // NeighbourTable owned by this World. BeaconSystem populates it from
+    // received StateVector beacons; FlockingSystem and TaskAllocSystem
+    // read it.
+    NeighbourTable&         neighbour_table() noexcept;
+    const NeighbourTable&   neighbour_table() const noexcept;
 
     // ---- Convenience forwards ----
 
@@ -151,6 +158,7 @@ private:
     SystemScheduler                   scheduler_;
     SwarmContext                      context_{};
     std::unique_ptr<TransportLayer>   transport_;
+    NeighbourTable                    neighbour_table_;
     bool                              initialized_ = false;
 };
 

@@ -136,6 +136,9 @@ const SystemScheduler& World::scheduler() const noexcept { return scheduler_; }
 TransportLayer*        World::transport()       noexcept { return transport_.get(); }
 const TransportLayer*  World::transport() const noexcept { return transport_.get(); }
 
+NeighbourTable&        World::neighbour_table()       noexcept { return neighbour_table_; }
+const NeighbourTable&  World::neighbour_table() const noexcept { return neighbour_table_; }
+
 SchedulerStatus World::register_system(std::unique_ptr<System> system) {
     return scheduler_.register_system(std::move(system));
 }

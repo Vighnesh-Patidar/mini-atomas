@@ -31,6 +31,8 @@ add_library(mith STATIC
     src/core/trace_sink.cpp
     src/core/world.cpp
     src/comms/neighbour_table.cpp
+    src/comms/beacon_system.cpp
+    src/systems/flocking_system.cpp
     src/sim/sim_clock.cpp
     src/sim/sim_bus.cpp
 )

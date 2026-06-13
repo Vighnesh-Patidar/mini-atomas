@@ -17,6 +17,8 @@ add_executable(mith_unit_tests
     unit/test_neighbour_table.cpp
     unit/test_transport.cpp
     unit/test_sim.cpp
+    unit/test_beacon_system.cpp
+    unit/test_flocking_system.cpp
 )
 
 target_link_libraries(mith_unit_tests PRIVATE mith::mith)
