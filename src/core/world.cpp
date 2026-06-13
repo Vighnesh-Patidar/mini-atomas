@@ -131,4 +131,15 @@ void World::set_trace_sink(TraceSink* sink) noexcept {
     scheduler_.set_trace_sink(sink);
 }
 
+void World::rotate_identity() noexcept {
+    // v0.1 stub. Effective policies (PER_MISSION, PERIODIC, EVENT_DRIVEN)
+    // land in v0.2 alongside cryptographic identity (§3.3, §3.4). Under
+    // PERMANENT — the only policy honoured in v0.1 — this is a no-op
+    // by design.
+    //
+    // The hook exists now so API consumers can write the EVENT_DRIVEN
+    // call shape today; it will become functional in v0.2 without
+    // breaking the call site.
+}
+
 } // namespace mith

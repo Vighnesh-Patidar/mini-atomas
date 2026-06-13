@@ -12,6 +12,7 @@ add_executable(mith_unit_tests
     unit/test_action.cpp
     unit/test_message.cpp
     unit/test_world.cpp
+    unit/test_identity_stubs.cpp
 )
 
 target_link_libraries(mith_unit_tests PRIVATE mith::mith)

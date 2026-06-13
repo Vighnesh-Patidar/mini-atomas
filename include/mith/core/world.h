@@ -29,6 +29,7 @@
 #include "mith/core/scheduler.h"
 #include "mith/core/swarm_context.h"
 #include "mith/identity/hierarchical_id.h"
+#include "mith/identity/identity_rotation.h"
 
 #include <atomic>
 #include <cstddef>
@@ -57,6 +58,11 @@ struct WorldConfig {
     ComponentRegistrationPolicy registration_policy =
         ComponentRegistrationPolicy::LockAfterInit;
     SchedulerMode scheduler_mode = SchedulerMode::Sequential;
+
+    // Identity rotation policy per §3.4. v0.1 honours PERMANENT only;
+    // the other values' enforcement lands in v0.2 alongside signed mode.
+    IdentityRotationPolicy identity_rotation_policy =
+        IdentityRotationPolicy::PERMANENT;
 };
 
 class World {
@@ -113,6 +119,14 @@ public:
     // component_registered (from registry) and tick_completed (from
     // scheduler) events. Pass nullptr to clear.
     void set_trace_sink(TraceSink* sink) noexcept;
+
+    // Rotate the robot's identity (§3.4). v0.1 ships this as a no-op
+    // stub — actual rotation under PER_MISSION / PERIODIC / EVENT_DRIVEN
+    // policies lands in v0.2 alongside the Ed25519 / IdentityCertificate
+    // work. Under PERMANENT (v0.1 default) this is a meaningful no-op
+    // by design; under the other policies it will perform the rotation
+    // dance once v0.2 wires it up.
+    void rotate_identity() noexcept;
 
 private:
     WorldConfig      config_;

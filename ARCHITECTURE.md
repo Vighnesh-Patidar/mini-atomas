@@ -892,6 +892,10 @@ struct WorldConfig {
 
     ComponentRegistrationPolicy registration_policy = ComponentRegistrationPolicy::LockAfterInit;
     SchedulerMode               scheduler_mode      = SchedulerMode::Parallel;
+
+    // Identity rotation policy (§3.4). v0.1 honours PERMANENT only;
+    // the other values' enforcement lands in v0.2.
+    IdentityRotationPolicy      identity_rotation_policy = IdentityRotationPolicy::PERMANENT;
 };
 
 class World {
@@ -917,6 +921,11 @@ public:
     void        init();
     void        tick();             // Single tick — call from your control loop
     void        run(std::atomic<bool>& stop_flag); // Blocking loop at configured tick_rate_hz
+
+    // Identity rotation (§3.4). v0.1 ships as a no-op stub; PER_MISSION /
+    // PERIODIC / EVENT_DRIVEN policies become functional in v0.2 alongside
+    // signed-mode cryptographic identity (§3.3).
+    void        rotate_identity() noexcept;
 
     EntityRegistry&  registry();
     NeighbourTable&  neighbour_table();
@@ -1327,8 +1336,8 @@ The schedule below is dependency-ordered: each tier resolves blockers for the ne
 Architecture per Pre-v0.1 #1–#7. Inter-robot interaction lands through `BeaconSystem` + `SimTransport`; the *active* fault response (degraded-mode mask transitions, network fault detection, identity rotation) defers to v0.2 with dormant hooks already in place — see "Dormant in v0.1" below.
 
 - [x] `mith::UUID` + `mith::HierarchicalID` (unsigned identity, §3.1)
-- [ ] `IdentityKey` data type + `IdentityVerifier` interface with no-op default (§3.3) — Ed25519 impl deferred to v0.2
-- [ ] `IdentityRotationPolicy` enum + `World::rotate_identity()` API stub (§3.4) — policy enforcement deferred to v0.2
+- [x] `IdentityKey` data type + `IdentityVerifier` interface with `NoopIdentityVerifier` default (§3.3) — Ed25519 impl deferred to v0.2
+- [x] `IdentityRotationPolicy` enum + `World::rotate_identity()` API stub (§3.4) — policy enforcement deferred to v0.2
 - [ ] `BoundedQueue<T, N, Policy>` template + drop / overflow counters (§4.5)
 - [ ] `EntityRegistry` + unified `register_component<T>()` machinery; `ComponentOrigin` + `ComponentRegistrationPolicy` enforcement (§4.1, §4.3, §13.5)
 - [ ] Built-in hot components per §4.4 — Identity, Position, Velocity, Orientation, Health, Role, BehaviourState, ActionQueue, CommBuffer, **PermissionMask**
