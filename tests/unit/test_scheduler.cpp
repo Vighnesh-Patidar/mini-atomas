@@ -1,8 +1,10 @@
 #include "doctest.h"
+#include "test_helpers.h"
 
 #include "mith/core/registry.h"
 #include "mith/core/scheduler.h"
 #include "mith/core/system.h"
+#include "mith/core/trace_sink.h"
 
 #include <cstdint>
 #include <memory>
@@ -17,6 +19,8 @@ using mith::SwarmContext;
 using mith::System;
 using mith::SystemDescriptor;
 using mith::SystemScheduler;
+using mith_test::JsonCapturingSink;
+using mith_test::contains;
 
 namespace {
 
@@ -264,4 +268,153 @@ TEST_CASE("Sequential scheduler runs systems with declared hazards in name order
     REQUIRE(log.size() == 2u);
     CHECK(log[0] == "Reader");    // lexicographic
     CHECK(log[1] == "Writer");
+}
+
+// ------------------------------------------------------------------------
+// TraceSink wiring — tick_completed events per §14.4 INFO level.
+// ------------------------------------------------------------------------
+
+TEST_CASE("scheduler trace_sink defaults to null; setter/getter round-trip") {
+    SystemScheduler sched;
+    CHECK(sched.trace_sink() == nullptr);
+
+    JsonCapturingSink sink;
+    sched.set_trace_sink(&sink);
+    CHECK(sched.trace_sink() == &sink);
+
+    sched.set_trace_sink(nullptr);
+    CHECK(sched.trace_sink() == nullptr);
+}
+
+TEST_CASE("tick emits a tick_completed event with the expected fields") {
+    std::vector<std::string> log;
+    SystemScheduler sched;
+    JsonCapturingSink sink;
+    sched.set_trace_sink(&sink);
+
+    REQUIRE(sched.register_system(std::make_unique<TaggingSystem>("Sys", log))
+            == SchedulerStatus::Ok);
+    REQUIRE(sched.build_graph() == SchedulerStatus::Ok);
+
+    EntityRegistry reg;
+    SwarmContext ctx{
+        /*swarm_id=*/      mith::SwarmID{0x42},
+        /*elapsed_time_s=*/0.0f,
+        /*delta_time_s=*/  0.05f,
+        /*tick_count=*/    7u,
+    };
+    sched.tick(reg, ctx, 0.05f);
+
+    REQUIRE(sink.lines.size() == 1u);
+    const auto& line = sink.lines[0];
+    CHECK(contains(line, "\"level\":\"info\""));
+    CHECK(contains(line, "\"event\":\"tick_completed\""));
+    CHECK(contains(line, "\"tick\":7"));
+    CHECK(contains(line, "\"system_count\":1"));
+    CHECK(contains(line, "\"swarm_id\":66"));   // 0x42 = 66 decimal
+    CHECK(contains(line, "\"delta_time_s\":"));   // value formatting varies
+}
+
+TEST_CASE("multiple ticks emit one tick_completed event each") {
+    SystemScheduler sched;
+    JsonCapturingSink sink;
+    sched.set_trace_sink(&sink);
+
+    REQUIRE(sched.build_graph() == SchedulerStatus::Ok);
+
+    EntityRegistry reg;
+    SwarmContext ctx;
+    for (std::size_t i = 0; i < 5; ++i) {
+        ctx.tick_count = i;
+        sched.tick(reg, ctx, 0.05f);
+    }
+
+    REQUIRE(sink.lines.size() == 5u);
+    for (std::size_t i = 0; i < 5; ++i) {
+        CHECK(contains(sink.lines[i], "\"tick\":" + std::to_string(i)));
+    }
+}
+
+TEST_CASE("tick without a sink does not crash") {
+    std::vector<std::string> log;
+    SystemScheduler sched;
+    REQUIRE(sched.register_system(std::make_unique<TaggingSystem>("Sys", log))
+            == SchedulerStatus::Ok);
+    REQUIRE(sched.build_graph() == SchedulerStatus::Ok);
+    EntityRegistry reg;
+    SwarmContext   ctx;
+
+    // No sink set — should still complete the tick.
+    sched.tick(reg, ctx, 0.05f);
+    CHECK(log.size() == 1u);
+}
+
+TEST_CASE("empty scheduler emits tick_completed with system_count=0") {
+    SystemScheduler sched;
+    JsonCapturingSink sink;
+    sched.set_trace_sink(&sink);
+
+    REQUIRE(sched.build_graph() == SchedulerStatus::Ok);
+
+    EntityRegistry reg;
+    SwarmContext   ctx;
+    sched.tick(reg, ctx, 0.05f);
+
+    REQUIRE(sink.lines.size() == 1u);
+    CHECK(contains(sink.lines[0], "\"system_count\":0"));
+}
+
+TEST_CASE("sink can be replaced or cleared between ticks") {
+    SystemScheduler sched;
+    JsonCapturingSink first, second;
+    REQUIRE(sched.build_graph() == SchedulerStatus::Ok);
+
+    EntityRegistry reg;
+    SwarmContext ctx;
+
+    sched.set_trace_sink(&first);
+    sched.tick(reg, ctx, 0.05f);
+    CHECK(first.lines.size() == 1u);
+
+    sched.set_trace_sink(&second);
+    sched.tick(reg, ctx, 0.05f);
+    CHECK(first.lines.size() == 1u);   // unchanged after swap
+    CHECK(second.lines.size() == 1u);
+
+    sched.set_trace_sink(nullptr);
+    sched.tick(reg, ctx, 0.05f);
+    CHECK(second.lines.size() == 1u);   // still 1 — nullptr swallows
+}
+
+TEST_CASE("tick_completed fires AFTER systems run (systems see no event yet)") {
+    // A probe system that records sink.lines.size() at the time it ticks.
+    // If tick_completed were emitted before systems, this would observe 1.
+    // Since it's emitted after, the probe sees 0.
+    struct EmitObserver : System {
+        JsonCapturingSink& sink;
+        std::size_t        observed_lines_at_tick = 999;
+        explicit EmitObserver(JsonCapturingSink& s) : sink(s) {}
+        SystemDescriptor describe() const override {
+            return {"EmitObserver", {}, {}, {}, {}};
+        }
+        void tick(EntityRegistry&, const SwarmContext&, float) override {
+            observed_lines_at_tick = sink.lines.size();
+        }
+    };
+
+    SystemScheduler sched;
+    JsonCapturingSink sink;
+    sched.set_trace_sink(&sink);
+
+    auto observer = std::make_unique<EmitObserver>(sink);
+    EmitObserver* observer_raw = observer.get();
+    REQUIRE(sched.register_system(std::move(observer)) == SchedulerStatus::Ok);
+    REQUIRE(sched.build_graph() == SchedulerStatus::Ok);
+
+    EntityRegistry reg;
+    SwarmContext   ctx;
+    sched.tick(reg, ctx, 0.05f);
+
+    CHECK(observer_raw->observed_lines_at_tick == 0u);   // event not yet emitted
+    CHECK(sink.lines.size() == 1u);                       // emitted after tick
 }

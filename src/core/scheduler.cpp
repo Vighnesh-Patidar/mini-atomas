@@ -1,5 +1,7 @@
 #include "mith/core/scheduler.h"
 
+#include "mith/core/trace_sink.h"
+
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -70,6 +72,7 @@ void SystemScheduler::tick(EntityRegistry& registry,
         for (const std::size_t idx : order_) {
             systems_[idx]->tick(registry, ctx, delta_time);
         }
+        emit_tick_event_(ctx, delta_time);
         return;
     }
 
@@ -81,5 +84,27 @@ void SystemScheduler::tick(EntityRegistry& registry,
 SchedulerMode SystemScheduler::mode() const noexcept       { return mode_; }
 std::size_t   SystemScheduler::system_count() const noexcept { return systems_.size(); }
 bool          SystemScheduler::is_built() const noexcept    { return built_; }
+
+void SystemScheduler::set_trace_sink(TraceSink* sink) noexcept {
+    sink_ = sink;
+}
+
+TraceSink* SystemScheduler::trace_sink() const noexcept {
+    return sink_;
+}
+
+void SystemScheduler::emit_tick_event_(const SwarmContext& ctx,
+                                        float delta_time) noexcept {
+    if (!sink_) return;
+
+    const TraceField fields[] = {
+        TraceField::u64("tick",         static_cast<std::uint64_t>(ctx.tick_count)),
+        TraceField::f64("delta_time_s", static_cast<double>(delta_time)),
+        TraceField::u64("system_count", static_cast<std::uint64_t>(systems_.size())),
+        TraceField::u64("swarm_id",     static_cast<std::uint64_t>(ctx.swarm_id)),
+    };
+    sink_->emit(TraceLevel::Info, "tick_completed",
+                fields, sizeof(fields) / sizeof(fields[0]));
+}
 
 } // namespace mith

@@ -31,6 +31,8 @@
 namespace mith {
 
 class EntityRegistry;   // fwd — defined in registry.h
+class TraceSink;        // fwd — defined in trace_sink.h. Only scheduler.cpp
+                        // pulls the full header.
 
 enum class SchedulerMode : std::uint8_t {
     Parallel    = 0,   // v0.1 first slice: not yet implemented (tick aborts)
@@ -76,11 +78,21 @@ public:
     std::size_t   system_count() const noexcept;
     bool          is_built()     const noexcept;
 
+    // Observability sink (§14.4). Nullable; default is unset (no emission).
+    // When set, tick() emits a `tick_completed` event at TraceLevel::Info
+    // after all systems have run, carrying tick number, delta_time_s,
+    // system_count, swarm_id. Caller owns the sink lifetime.
+    void       set_trace_sink(TraceSink* sink) noexcept;
+    TraceSink* trace_sink() const noexcept;
+
 private:
+    void emit_tick_event_(const SwarmContext& ctx, float delta_time) noexcept;
+
     SchedulerMode                         mode_;
     std::vector<std::unique_ptr<System>>  systems_;
     std::vector<std::size_t>              order_;     // indices into systems_
     bool                                  built_ = false;
+    TraceSink*                            sink_  = nullptr;
 };
 
 } // namespace mith

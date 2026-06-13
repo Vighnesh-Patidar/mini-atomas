@@ -37,23 +37,6 @@ struct MissionTagComponent : mith::ColdComponent<MissionTagComponent> {
     explicit MissionTagComponent(int t) noexcept : tag(t) {}
 };
 
-// Capturing sink for audit-event tests. Each emit() turns the event into a
-// JSON line via JsonTraceSink::format() and stores it. Tests grep the
-// resulting lines for expected substrings.
-struct JsonCapturingSink : mith::TraceSink {
-    std::vector<std::string> lines;
-
-    using TraceSink::emit;
-    void emit(mith::TraceLevel level, std::string_view event,
-              const mith::TraceField* fields, std::size_t count) noexcept override {
-        lines.push_back(mith::JsonTraceSink::format(level, event, fields, count));
-    }
-};
-
-inline bool contains(std::string_view haystack, std::string_view needle) noexcept {
-    return haystack.find(needle) != std::string_view::npos;
-}
-
 } // namespace
 
 TEST_CASE("default-constructed registry has no components, is unlocked") {
