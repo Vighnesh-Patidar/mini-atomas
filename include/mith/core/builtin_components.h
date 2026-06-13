@@ -12,10 +12,10 @@
 // default-constructible, no allocations. They are intended as transparent
 // state on the self entity — systems read and write them directly.
 //
-// Components that depend on §6 (Action) or §7 (Message) — ActionQueueComponent
-// and CommBufferComponent — land alongside those sections' implementation.
-
+#include "mith/behaviour/action.h"
 #include "mith/behaviour/action_type.h"
+#include "mith/comms/message.h"
+#include "mith/core/bounded_queue.h"
 #include "mith/core/component.h"
 #include "mith/identity/hierarchical_id.h"
 
@@ -129,6 +129,33 @@ struct PermissionMaskComponent : HotComponent<PermissionMaskComponent> {
         if (t > actions::BUILTIN_MAX) return false;
         return (allowed_builtins & (1u << t)) != 0u;
     }
+};
+
+// §4.4 — pending actions queued for ActionValidatorSystem (§6.4) and the
+// action handler systems. Overflow policy is DropNewest — already-queued
+// actions reflect validated intent that should be preserved; new pushes
+// to a full queue are dropped and surface as a counter increment.
+//
+// permission_rejections_total is incremented by ActionValidatorSystem
+// each time it marks an action rejected due to PermissionMaskComponent
+// (§13.2). last_rejection_tick records the most recent tick that did so.
+// Both are exposed via dump_state() (§14.1) and assert-able in tests.
+struct ActionQueueComponent : HotComponent<ActionQueueComponent> {
+    static constexpr std::size_t CAPACITY = 8;
+
+    BoundedQueue<Action, CAPACITY, OverflowPolicy::DropNewest> queue;
+    std::uint32_t permission_rejections_total = 0;
+    std::uint64_t last_rejection_tick         = 0;
+};
+
+// §4.4 — inbound messages drained from the transport (§7.5) by
+// BeaconSystem (§5.3). Overflow policy is DropOldest — network bursts
+// are expected; stale undelivered messages are evicted to make room for
+// fresher ones, and application-level retry handles critical traffic.
+struct CommBufferComponent : HotComponent<CommBufferComponent> {
+    static constexpr std::size_t CAPACITY = 16;
+
+    BoundedQueue<Message, CAPACITY, OverflowPolicy::DropOldest> queue;
 };
 
 } // namespace mith

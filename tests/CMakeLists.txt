@@ -9,6 +9,8 @@ add_executable(mith_unit_tests
     unit/test_json_writer.cpp
     unit/test_trace_sink.cpp
     unit/test_view_and_snapshot.cpp
+    unit/test_action.cpp
+    unit/test_message.cpp
 )
 
 target_link_libraries(mith_unit_tests PRIVATE mith::mith)
