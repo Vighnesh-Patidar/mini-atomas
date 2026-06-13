@@ -105,7 +105,11 @@ public:
     // ---- Accessors ----
 
     EntityID                self_id()  const noexcept;
+
+    // The HID of the self entity. ONLY valid after init() — pre-init this
+    // aborts via the registry (IdentityComponent not yet emplaced).
     const HierarchicalID&   identity() const noexcept;
+
     const SwarmContext&     context()  const noexcept;
     const WorldConfig&      config()   const noexcept;
 

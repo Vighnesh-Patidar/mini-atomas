@@ -6,6 +6,10 @@ Swarm robotics orchestration runtime — C++17.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the authoritative design.
 
+![flocking demo — 10 robots, 200 ticks @ 20 Hz](docs/assets/flocking_demo.png)
+
+10 simulated robots starting in a 5×2 grid and flocking through `BeaconSystem` + `FlockingSystem` + `KinematicsSystem`. From `t=0` to `t=200` the mean radius around the centroid contracts ~70% (6.87 m → 2.10 m) — cohesion + alignment pull the flock together; separation keeps them from overlapping. Reproduce with [the demo command](#run-the-flocking-demo).
+
 ---
 
 ## Status — v0.1 feature complete
@@ -122,6 +126,19 @@ target_link_libraries(my_robot PRIVATE mith::mith)
 - **§16** Roadmap
 
 ---
+
+## Contributing
+
+PRs welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, conventions, commit style, and what we look for in review. The [Code of Conduct](CODE_OF_CONDUCT.md) governs all community spaces — issues, PRs, discussions.
+
+Templates:
+
+- `.github/PULL_REQUEST_TEMPLATE.md` — auto-applied on new PRs
+- `.github/ISSUE_TEMPLATE/bug_report.md`
+- `.github/ISSUE_TEMPLATE/feature_request.md`
+- `.github/ISSUE_TEMPLATE/question.md`
+
+For security-relevant issues (anything touching §3.3 identity, §13.5 EW posture, or transport auth), do not file a public issue — email the maintainer directly. See [CONTRIBUTING.md](CONTRIBUTING.md#reporting-security-issues).
 
 ## License
 

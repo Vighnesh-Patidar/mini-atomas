@@ -60,6 +60,14 @@ public:
     //   ctx         — read-only swarm context (§6.2)
     //   delta_time  — tick duration in seconds (also available as ctx.delta_time_s;
     //                 the explicit parameter matches §5.1 for ergonomics)
+    //
+    // Contract: tick() MUST NOT throw. The base class declaration is not marked
+    // `noexcept` to keep the API source-compatible with C++17 callers that
+    // happen to declare overrides without the keyword, but per §15 no exceptions
+    // cross runtime boundaries. The Parallel scheduler dispatches each tick on
+    // a worker thread and will hang if a user system throws (the completion
+    // counter never increments). Treat any exception path as a contract
+    // violation — return early instead.
     virtual void tick(EntityRegistry& registry,
                       const SwarmContext& ctx,
                       float delta_time) = 0;

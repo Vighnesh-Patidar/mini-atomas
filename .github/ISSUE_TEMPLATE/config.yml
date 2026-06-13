@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Architecture & design
+    url: https://github.com/Vighnesh-Patidar/mith-atomas/blob/main/ARCHITECTURE.md
+    about: Before opening an issue, check ARCHITECTURE.md — it's the spec.
+  - name: Security issues
+    url: https://github.com/Vighnesh-Patidar/mith-atomas/blob/main/CONTRIBUTING.md#reporting-security-issues
+    about: Do not file public issues for security findings; coordinate privately.
