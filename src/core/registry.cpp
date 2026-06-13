@@ -45,6 +45,27 @@ TraceSink* EntityRegistry::trace_sink() const noexcept {
     return sink_;
 }
 
+EntitySnapshot EntityRegistry::snapshot(EntityID id) const {
+    if (id != SELF_ENTITY) {
+        detail::registry_assert_fail("snapshot: id != SELF_ENTITY (v0.1 N=1)");
+    }
+    EntitySnapshot snap;
+    snap.id = id;
+
+    // For each built-in hot component: if it's been emplaced, copy its
+    // current value into the snapshot. Missing components keep their
+    // default values — see §6.2 for the defensive-write rationale.
+    if (has<IdentityComponent>(id))         snap.hid         = get<IdentityComponent>(id).id;
+    if (has<PositionComponent>(id))         snap.position    = get<PositionComponent>(id);
+    if (has<VelocityComponent>(id))         snap.velocity    = get<VelocityComponent>(id);
+    if (has<OrientationComponent>(id))      snap.orientation = get<OrientationComponent>(id);
+    if (has<HealthComponent>(id))           snap.health      = get<HealthComponent>(id);
+    if (has<RoleComponent>(id))             snap.role        = get<RoleComponent>(id);
+    if (has<BehaviourStateComponent>(id))   snap.state       = get<BehaviourStateComponent>(id);
+
+    return snap;
+}
+
 void EntityRegistry::emit_registered_event_(ComponentOrigin   origin,
                                              std::string_view  type_name_,
                                              ComponentTypeID   type_id) noexcept {

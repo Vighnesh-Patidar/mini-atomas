@@ -35,6 +35,7 @@
 
 #include "mith/core/component.h"
 #include "mith/core/entity.h"
+#include "mith/core/entity_snapshot.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -183,6 +184,24 @@ public:
         return typed->get();
     }
 
+    // Read-only variant. Same contract as the mutable get<T>; aborts on
+    // missing registration / emplacement / non-self entity.
+    template<typename T>
+    const T& get(EntityID id) const {
+        if (id != SELF_ENTITY) {
+            detail::registry_assert_fail("get<T>: id != SELF_ENTITY (v0.1 N=1)");
+        }
+        const auto it = stores_.find(component_id<T>());
+        if (it == stores_.end()) {
+            detail::registry_assert_fail("get<T>: component not registered");
+        }
+        const auto* typed = static_cast<const detail::ComponentStore<T>*>(it->second.get());
+        if (!typed->has()) {
+            detail::registry_assert_fail("get<T>: component not emplaced");
+        }
+        return typed->get();
+    }
+
     // Requires T registered AND id == SELF_ENTITY. Aborts otherwise.
     template<typename T>
     void emplace(EntityID id, T&& component) {
@@ -208,6 +227,22 @@ public:
     std::size_t registered_count() const noexcept;
 
     ComponentRegistrationPolicy policy() const noexcept;
+
+    // View over entities that have ALL of Ts... — see §4.3.
+    // At v0.1 N=1 this is degenerate: the view is either empty (if self
+    // lacks any of Ts) or yields exactly one entity (the self). The shape
+    // is forward-compat with v0.5 multi-entity (§3.2).
+    template<typename... Ts>
+    class ArchetypeView;
+
+    template<typename... Ts>
+    ArchetypeView<Ts...> view() noexcept;
+
+    // Read-only snapshot of the self entity (§6.2 EntitySnapshot). Copies
+    // every built-in hot component that is currently emplaced; missing
+    // components remain at their defaults. Aborts if id != SELF_ENTITY
+    // (v0.1 N=1).
+    EntitySnapshot snapshot(EntityID id) const;
 
     // Audit / observability sink (§4.1, §14.4). Nullable; default is unset
     // (no emission). When set, every successful registration — both User
@@ -265,5 +300,51 @@ private:
     bool                        locked_ = false;
     TraceSink*                  sink_   = nullptr;
 };
+
+// ArchetypeView<Ts...> — see §4.3.
+// At v0.1 N=1 this is degenerate: the view is either empty (if the self
+// entity lacks any of Ts) or yields exactly one entity (the self). The
+// shape is forward-compat with v0.5 multi-entity (§3.2).
+//
+// Defined out-of-line so EntityRegistry's full type is available before
+// any of these methods are instantiated.
+template<typename... Ts>
+class EntityRegistry::ArchetypeView {
+public:
+    static_assert(sizeof...(Ts) > 0,
+                  "ArchetypeView<>: must request at least one component type");
+    static_assert((is_well_formed_component_v<Ts> && ...),
+                  "ArchetypeView<Ts...>: each T must inherit exactly one of "
+                  "HotComponent<T> or ColdComponent<T>");
+
+    explicit ArchetypeView(EntityRegistry& reg) noexcept : reg_(&reg) {}
+
+    // True iff the self entity has every requested component.
+    bool        has_all() const noexcept { return has_all_impl_(); }
+    bool        empty()   const noexcept { return !has_all_impl_(); }
+    std::size_t size()    const noexcept { return has_all_impl_() ? std::size_t{1} : std::size_t{0}; }
+
+    // Invoke fn(EntityID, Ts&...) for each entity in the view. At v0.1 N=1,
+    // fn is invoked at most once, only when has_all() is true. If any
+    // component is missing, fn is not invoked.
+    template<typename F>
+    void for_each(F&& fn) {
+        if (!has_all_impl_()) return;
+        fn(reg_->self_id(),
+           reg_->template get<Ts>(reg_->self_id())...);
+    }
+
+private:
+    bool has_all_impl_() const noexcept {
+        return (... && reg_->template has<Ts>(reg_->self_id()));
+    }
+
+    EntityRegistry* reg_;
+};
+
+template<typename... Ts>
+inline auto EntityRegistry::view() noexcept -> ArchetypeView<Ts...> {
+    return ArchetypeView<Ts...>(*this);
+}
 
 } // namespace mith
