@@ -38,7 +38,8 @@
 
 namespace mith {
 
-class TraceSink;   // fwd
+class TraceSink;       // fwd
+class TransportLayer;  // fwd — full type in mith/comms/transport.h
 
 // Mirrors §8 WorldConfig. SwarmID 0 is reserved (broadcast / unset);
 // production deployments use 1..0xFFFE.
@@ -68,6 +69,17 @@ struct WorldConfig {
 class World {
 public:
     explicit World(WorldConfig config) noexcept;
+
+    // Transport-taking ctor. The transport is held but not actively
+    // exercised until BeaconSystem (§5.3, v0.2) lands and starts driving
+    // it; in v0.1 it serves as the wiring point for sim and (eventually)
+    // hardware transports.
+    World(WorldConfig config, std::unique_ptr<TransportLayer> transport) noexcept;
+
+    // Destructor declared here, defined in world.cpp where TransportLayer's
+    // full type is visible. Required because std::unique_ptr<TransportLayer>'s
+    // deleter needs sizeof(TransportLayer) at instantiation time.
+    ~World();
 
     // ---- Lifecycle ----
 
@@ -102,6 +114,11 @@ public:
     SystemScheduler&        scheduler() noexcept;
     const SystemScheduler&  scheduler() const noexcept;
 
+    // Nullable — the transport-less ctor leaves this null. BeaconSystem
+    // (v0.2) consumes this via send_beacon / send_message / poll.
+    TransportLayer*         transport() noexcept;
+    const TransportLayer*   transport() const noexcept;
+
     // ---- Convenience forwards ----
 
     // Forwards to scheduler.register_system(). For consistent results,
@@ -129,11 +146,12 @@ public:
     void rotate_identity() noexcept;
 
 private:
-    WorldConfig      config_;
-    EntityRegistry   registry_;
-    SystemScheduler  scheduler_;
-    SwarmContext     context_{};
-    bool             initialized_ = false;
+    WorldConfig                       config_;
+    EntityRegistry                    registry_;
+    SystemScheduler                   scheduler_;
+    SwarmContext                      context_{};
+    std::unique_ptr<TransportLayer>   transport_;
+    bool                              initialized_ = false;
 };
 
 } // namespace mith

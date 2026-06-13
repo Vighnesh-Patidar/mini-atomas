@@ -1,5 +1,6 @@
 #include "mith/core/world.h"
 
+#include "mith/comms/transport.h"
 #include "mith/core/builtin_components.h"
 #include "mith/core/trace_sink.h"
 #include "mith/identity/hierarchical_id.h"
@@ -26,6 +27,16 @@ World::World(WorldConfig config) noexcept
     , scheduler_(config.scheduler_mode) {
     context_.swarm_id = config_.swarm_id;
 }
+
+World::World(WorldConfig config, std::unique_ptr<TransportLayer> transport) noexcept
+    : config_(config)
+    , registry_(config.registration_policy)
+    , scheduler_(config.scheduler_mode)
+    , transport_(std::move(transport)) {
+    context_.swarm_id = config_.swarm_id;
+}
+
+World::~World() = default;
 
 void World::init() {
     if (initialized_) {
@@ -121,6 +132,9 @@ const EntityRegistry&  World::registry() const noexcept { return registry_; }
 
 SystemScheduler&       World::scheduler()       noexcept { return scheduler_; }
 const SystemScheduler& World::scheduler() const noexcept { return scheduler_; }
+
+TransportLayer*        World::transport()       noexcept { return transport_.get(); }
+const TransportLayer*  World::transport() const noexcept { return transport_.get(); }
 
 SchedulerStatus World::register_system(std::unique_ptr<System> system) {
     return scheduler_.register_system(std::move(system));

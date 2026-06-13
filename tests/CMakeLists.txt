@@ -15,6 +15,8 @@ add_executable(mith_unit_tests
     unit/test_identity_stubs.cpp
     unit/test_state_vector.cpp
     unit/test_neighbour_table.cpp
+    unit/test_transport.cpp
+    unit/test_sim.cpp
 )
 
 target_link_libraries(mith_unit_tests PRIVATE mith::mith)
