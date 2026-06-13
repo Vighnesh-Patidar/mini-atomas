@@ -13,6 +13,8 @@ add_executable(mith_unit_tests
     unit/test_message.cpp
     unit/test_world.cpp
     unit/test_identity_stubs.cpp
+    unit/test_state_vector.cpp
+    unit/test_neighbour_table.cpp
 )
 
 target_link_libraries(mith_unit_tests PRIVATE mith::mith)
