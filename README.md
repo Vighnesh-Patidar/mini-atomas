@@ -6,9 +6,22 @@ Swarm robotics orchestration runtime — C++17.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the authoritative design.
 
-![flocking demo — 10 robots, 200 ticks @ 20 Hz](docs/assets/flocking_demo.png)
+<table>
+<tr>
+<td width="55%">
 
-10 simulated robots starting in a 5×2 grid and flocking through `BeaconSystem` + `FlockingSystem` + `KinematicsSystem`. From `t=0` to `t=200` the mean radius around the centroid contracts ~70% (6.87 m → 2.10 m) — cohesion + alignment pull the flock together; separation keeps them from overlapping. Reproduce with [the demo command](#run-the-flocking-demo).
+10 simulated robots starting in a 5×2 grid and flocking through `BeaconSystem` + `FlockingSystem` + `KinematicsSystem`. From `t=0` to `t=200` the mean radius around the centroid contracts ~70% (6.87 m → 2.10 m) — cohesion + alignment pull the flock together; separation keeps them from overlapping.
+
+Frames captured live; rendered by `tools/visualiser/visualise.py`. Reproduce with [the demo command](#run-the-flocking-demo). Full sequence at `docs/assets/flocking_demo.png`.
+
+</td>
+<td width="45%" align="center">
+
+<img src="docs/assets/flocking_demo.gif" alt="flocking — 10 robots, 200 ticks @ 20 Hz" width="100%" />
+
+</td>
+</tr>
+</table>
 
 ---
 
@@ -27,7 +40,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the authoritative design.
 | Demo | 10-robot flocking demo + matplotlib visualiser |
 | Build | CMake STATIC library, install target with `find_package(mith-atomas)` config, doctest-vendored test suite |
 
-Test suite: **251 cases, 13,053 assertions, all passing.**
+Test suite: **275 cases, 13,149 assertions, all passing.**
 
 Pre-v0.1 design phase: **9/9 questions resolved** (see [ARCHITECTURE.md §16](ARCHITECTURE.md#16-roadmap)).
 

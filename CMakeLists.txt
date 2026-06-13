@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.21)
 project(mith-atomas
     VERSION 0.1.0
     DESCRIPTION "Swarm robotics orchestration runtime"
-    LANGUAGES CXX
+    LANGUAGES C CXX
 )
 
 set(CMAKE_CXX_STANDARD 17)
@@ -43,6 +43,20 @@ add_library(mith STATIC
 find_package(Threads REQUIRED)
 target_link_libraries(mith PUBLIC Threads::Threads)
 add_library(mith::mith ALIAS mith)
+
+# --- Cryptographic identity (§3.3) — gated by MITH_ENABLE_AUTH ---
+if(MITH_ENABLE_AUTH)
+    target_sources(mith PRIVATE
+        third_party/tweetnacl/tweetnacl.c
+        third_party/tweetnacl/randombytes.cpp
+        src/identity/ed25519.cpp
+    )
+    target_include_directories(mith PRIVATE third_party/tweetnacl)
+    target_compile_definitions(mith PUBLIC MITH_AUTH_ENABLED)
+    # TweetNaCl is C; suppress noisy warnings from C-style code in vendor.
+    set_source_files_properties(third_party/tweetnacl/tweetnacl.c
+        PROPERTIES COMPILE_OPTIONS "-w")
+endif()
 
 target_include_directories(mith PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
