@@ -1,0 +1,47 @@
+# Build outputs
+build/
+build-*/
+cmake-build-*/
+out/
+_deps/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+Testing/
+
+# Compiled objects
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.cache/
+.clangd/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python (visualiser)
+__pycache__/
+*.pyc
+.venv/
+venv/
