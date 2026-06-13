@@ -547,6 +547,81 @@ TEST_CASE("Parallel mode: emits tick_completed per tick") {
     }
 }
 
+// ------------------------------------------------------------------------
+// last_tick_timings — §14.2
+// ------------------------------------------------------------------------
+
+TEST_CASE("last_tick_timings: empty before any tick, sized N after build") {
+    std::vector<std::string> log;
+    SystemScheduler sched;
+    REQUIRE(sched.register_system(std::make_unique<TaggingSystem>("A", log))
+            == SchedulerStatus::Ok);
+    REQUIRE(sched.register_system(std::make_unique<TaggingSystem>("B", log))
+            == SchedulerStatus::Ok);
+
+    CHECK(sched.last_tick_timings().empty());
+
+    REQUIRE(sched.build_graph() == SchedulerStatus::Ok);
+    REQUIRE(sched.last_tick_timings().size() == 2u);
+
+    // Names populated even before first tick.
+    const auto& tt = sched.last_tick_timings();
+    CHECK(((tt[0].name == "A" && tt[1].name == "B") ||
+           (tt[0].name == "B" && tt[1].name == "A")));
+}
+
+TEST_CASE("last_tick_timings: Sequential records monotonic start_us per system") {
+    std::vector<std::string> log;
+    SystemScheduler sched(SchedulerMode::Sequential);
+    for (const char* name : {"A", "B", "C"}) {
+        REQUIRE(sched.register_system(std::make_unique<TaggingSystem>(name, log))
+                == SchedulerStatus::Ok);
+    }
+    REQUIRE(sched.build_graph() == SchedulerStatus::Ok);
+
+    EntityRegistry reg;
+    SwarmContext   ctx;
+    sched.tick(reg, ctx, 0.05f);
+
+    // Map name → timing to assert per-system regardless of systems_ order.
+    const auto& tt = sched.last_tick_timings();
+    REQUIRE(tt.size() == 3u);
+
+    double start_A = -1, start_B = -1, start_C = -1;
+    for (const auto& t : tt) {
+        if (t.name == "A") start_A = t.start_us;
+        if (t.name == "B") start_B = t.start_us;
+        if (t.name == "C") start_C = t.start_us;
+        CHECK(t.duration_us >= 0.0);
+        CHECK(t.start_us    >= 0.0);
+    }
+    // Lex order in Sequential — A first, then B, then C.
+    CHECK(start_A < start_B);
+    CHECK(start_B < start_C);
+}
+
+TEST_CASE("last_tick_timings: Parallel records timings from worker threads") {
+    SystemScheduler sched(SchedulerMode::Parallel);
+    std::vector<std::string> log;
+    for (const char* name : {"X", "Y", "Z"}) {
+        REQUIRE(sched.register_system(std::make_unique<TaggingSystem>(name, log))
+                == SchedulerStatus::Ok);
+    }
+    REQUIRE(sched.build_graph() == SchedulerStatus::Ok);
+
+    EntityRegistry reg;
+    SwarmContext   ctx;
+    sched.tick(reg, ctx, 0.05f);
+
+    const auto& tt = sched.last_tick_timings();
+    REQUIRE(tt.size() == 3u);
+    for (const auto& t : tt) {
+        CHECK(t.duration_us >= 0.0);
+        CHECK(t.start_us    >= 0.0);
+        CHECK(t.thread_id   != 0u);   // worker threads have non-zero hashes
+    }
+}
+
 TEST_CASE("Parallel mode: resource hazards serialise too") {
     SystemDescriptor reads_nt;
     reads_nt.reads_resources = {mith::ResourceID::NeighbourTable};

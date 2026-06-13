@@ -2,6 +2,7 @@
 
 #include "mith/comms/transport.h"
 #include "mith/core/builtin_components.h"
+#include "mith/core/json_writer.h"
 #include "mith/core/trace_sink.h"
 #include "mith/identity/hierarchical_id.h"
 
@@ -157,6 +158,96 @@ void World::rotate_identity() noexcept {
     // The hook exists now so API consumers can write the EVENT_DRIVEN
     // call shape today; it will become functional in v0.2 without
     // breaking the call site.
+}
+
+std::string World::dump_state() const {
+    JsonWriter w;
+    w.begin_object();
+
+    // Top-level swarm / clock state.
+    w.key("swarm_id");       w.write_u64(static_cast<std::uint64_t>(config_.swarm_id));
+    w.key("tick");           w.write_u64(static_cast<std::uint64_t>(context_.tick_count));
+    w.key("elapsed_time_s"); w.write_f64(static_cast<double>(context_.elapsed_time_s));
+    w.key("initialized");    w.write_bool(initialized_);
+
+    // Self entity — only populated post-init.
+    if (initialized_) {
+        w.key("self");
+        w.begin_object();
+
+        w.key("id"); w.write_string(identity().to_string());
+
+        const auto& pos = registry_.get<PositionComponent>(self_id());
+        w.key("position");
+        w.begin_object();
+        w.key("x"); w.write_f64(static_cast<double>(pos.x));
+        w.key("y"); w.write_f64(static_cast<double>(pos.y));
+        w.key("z"); w.write_f64(static_cast<double>(pos.z));
+        w.end_object();
+
+        const auto& vel = registry_.get<VelocityComponent>(self_id());
+        w.key("velocity");
+        w.begin_object();
+        w.key("vx"); w.write_f64(static_cast<double>(vel.vx));
+        w.key("vy"); w.write_f64(static_cast<double>(vel.vy));
+        w.key("vz"); w.write_f64(static_cast<double>(vel.vz));
+        w.end_object();
+
+        w.key("health"); w.write_u64(registry_.get<HealthComponent>(self_id()).value);
+        w.key("role");   w.write_u64(registry_.get<RoleComponent>(self_id()).role);
+        w.key("state");  w.write_u64(registry_.get<BehaviourStateComponent>(self_id()).state);
+
+        const auto& aq = registry_.get<ActionQueueComponent>(self_id());
+        w.key("action_queue_size");        w.write_u64(static_cast<std::uint64_t>(aq.queue.size()));
+        w.key("action_queue_dropped");     w.write_u64(aq.queue.dropped_count());
+        w.key("permission_rejections");    w.write_u64(aq.permission_rejections_total);
+
+        const auto& cb = registry_.get<CommBufferComponent>(self_id());
+        w.key("comm_buffer_size");    w.write_u64(static_cast<std::uint64_t>(cb.queue.size()));
+        w.key("comm_buffer_dropped"); w.write_u64(cb.queue.dropped_count());
+
+        w.end_object();
+    }
+
+    // NeighbourTable.
+    w.key("neighbour_count"); w.write_u64(static_cast<std::uint64_t>(neighbour_table_.count()));
+    w.key("neighbour_observations"); w.write_u64(neighbour_table_.total_observations());
+    w.key("neighbour_evictions");    w.write_u64(neighbour_table_.total_evictions());
+    w.key("neighbours");
+    w.begin_array();
+    for (const auto& n : neighbour_table_) {
+        w.begin_object();
+        w.key("id");          w.write_string(n.hid.to_string());
+        w.key("last_seen_s"); w.write_f64(static_cast<double>(n.last_seen_s));
+        w.key("position");
+        w.begin_object();
+        w.key("x"); w.write_f64(static_cast<double>(n.position.x));
+        w.key("y"); w.write_f64(static_cast<double>(n.position.y));
+        w.key("z"); w.write_f64(static_cast<double>(n.position.z));
+        w.end_object();
+        w.end_object();
+    }
+    w.end_array();
+
+    // Scheduler tick timings.
+    w.key("scheduler");
+    w.begin_object();
+    w.key("system_count"); w.write_u64(static_cast<std::uint64_t>(scheduler_.system_count()));
+    w.key("last_tick_timings");
+    w.begin_array();
+    for (const auto& t : scheduler_.last_tick_timings()) {
+        w.begin_object();
+        w.key("name");        w.write_string(t.name);
+        w.key("start_us");    w.write_f64(t.start_us);
+        w.key("duration_us"); w.write_f64(t.duration_us);
+        w.key("thread_id");   w.write_u64(t.thread_id);
+        w.end_object();
+    }
+    w.end_array();
+    w.end_object();
+
+    w.end_object();
+    return w.take();
 }
 
 } // namespace mith

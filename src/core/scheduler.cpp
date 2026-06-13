@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
@@ -98,6 +99,11 @@ static std::size_t resolve_pool_size(std::size_t requested) noexcept {
     return static_cast<std::size_t>(hc - 1);
 }
 
+static std::uint32_t current_thread_id_hash() noexcept {
+    return static_cast<std::uint32_t>(
+        std::hash<std::thread::id>{}(std::this_thread::get_id()));
+}
+
 } // namespace detail
 
 
@@ -160,6 +166,13 @@ SchedulerStatus SystemScheduler::build_graph() {
         }
     }
 
+    // Pre-size the timing buffer; name field set once here, the start_us /
+    // duration_us / thread_id fields are overwritten each tick.
+    last_timings_.resize(systems_.size());
+    for (std::size_t i = 0; i < systems_.size(); ++i) {
+        last_timings_[i].name = systems_[i]->describe().name;
+    }
+
     built_ = true;
     return SchedulerStatus::Ok;
 }
@@ -194,8 +207,18 @@ void SystemScheduler::tick(EntityRegistry& registry,
     }
 
     if (mode_ == SchedulerMode::Sequential) {
+        using clock = std::chrono::steady_clock;
+        using us    = std::chrono::duration<double, std::micro>;
+        const auto tick_start = clock::now();
+        const std::uint32_t tid = detail::current_thread_id_hash();
+
         for (const std::size_t idx : order_) {
+            const auto sys_start = clock::now();
             systems_[idx]->tick(registry, ctx, delta_time);
+            const auto sys_end = clock::now();
+            last_timings_[idx].start_us    = us(sys_start - tick_start).count();
+            last_timings_[idx].duration_us = us(sys_end - sys_start).count();
+            last_timings_[idx].thread_id   = tid;
         }
         emit_tick_event_(ctx, delta_time);
         return;
@@ -211,6 +234,10 @@ void SystemScheduler::tick_parallel_(EntityRegistry& registry,
                                       float delta_time) {
     const std::size_t N = systems_.size();
     if (N == 0) return;
+
+    using clock = std::chrono::steady_clock;
+    using us    = std::chrono::duration<double, std::micro>;
+    const auto tick_start = clock::now();
 
     // Per-tick in-degree counters. Atomics so workers can decrement
     // concurrently. Heap-allocated because std::vector<std::atomic<int>> is
@@ -229,7 +256,12 @@ void SystemScheduler::tick_parallel_(EntityRegistry& registry,
     std::function<void(std::size_t)> dispatch;
     dispatch = [&](std::size_t i) {
         pool_->submit([&, i]() {
+            const auto sys_start = clock::now();
             systems_[i]->tick(registry, ctx, delta_time);
+            const auto sys_end = clock::now();
+            last_timings_[i].start_us    = us(sys_start - tick_start).count();
+            last_timings_[i].duration_us = us(sys_end - sys_start).count();
+            last_timings_[i].thread_id   = detail::current_thread_id_hash();
 
             for (const std::size_t dep : dependents_[i]) {
                 if (in_degree[dep].fetch_sub(1, std::memory_order_acq_rel) == 1) {
@@ -261,6 +293,10 @@ void SystemScheduler::tick_parallel_(EntityRegistry& registry,
 SchedulerMode SystemScheduler::mode() const noexcept       { return mode_; }
 std::size_t   SystemScheduler::system_count() const noexcept { return systems_.size(); }
 bool          SystemScheduler::is_built() const noexcept    { return built_; }
+
+const std::vector<SystemTiming>& SystemScheduler::last_tick_timings() const noexcept {
+    return last_timings_;
+}
 
 void SystemScheduler::set_trace_sink(TraceSink* sink) noexcept {
     sink_ = sink;

@@ -49,6 +49,19 @@ enum class SchedulerStatus : std::uint8_t {
     AlreadyBuilt  = 2,   // build_graph: already built; rebuild not needed
 };
 
+// Per-system wall-time capture, populated each tick() call. See §14.2.
+//   start_us    — microseconds from the start of the tick to when this
+//                 system began executing.
+//   duration_us — microseconds the system spent in tick().
+//   thread_id   — hashed std::thread::id of the worker (Parallel mode);
+//                 main-thread id in Sequential mode.
+struct SystemTiming {
+    std::string   name;
+    double        start_us    = 0.0;
+    double        duration_us = 0.0;
+    std::uint32_t thread_id   = 0;
+};
+
 namespace detail {
 
 [[noreturn]] void scheduler_assert_fail(const char* msg) noexcept;
@@ -87,6 +100,12 @@ public:
     std::size_t   system_count() const noexcept;
     bool          is_built()     const noexcept;
 
+    // Returns the timings captured during the most recent tick(). One
+    // entry per registered system, in systems_-index order. Empty if no
+    // tick has run yet. Updated in-place each tick — safe to read between
+    // ticks, not thread-safe during a tick.
+    const std::vector<SystemTiming>& last_tick_timings() const noexcept;
+
     // Observability sink (§14.4). Nullable; default is unset (no emission).
     // When set, tick() emits a `tick_completed` event at TraceLevel::Info
     // after all systems have run, carrying tick number, delta_time_s,
@@ -110,6 +129,7 @@ private:
     std::vector<std::vector<std::size_t>>  dependents_;        // Parallel only — dependents_[i] = systems blocked on i
     std::vector<int>                       in_degree_initial_; // Parallel only — initial in-degree per system
     std::unique_ptr<detail::ThreadPool>    pool_;              // Parallel only
+    std::vector<SystemTiming>              last_timings_;      // §14.2 observability
     bool                                   built_ = false;
     TraceSink*                             sink_  = nullptr;
 };

@@ -252,3 +252,50 @@ TEST_CASE("run() exits cleanly when the stop_flag transitions to true") {
     CHECK(w.context().tick_count > 0u);
     CHECK(stop.load());
 }
+
+// ------------------------------------------------------------------------
+// World::dump_state — §14.1
+// ------------------------------------------------------------------------
+
+TEST_CASE("dump_state on uninitialised World emits a minimal object") {
+    World w(WorldConfig{});
+    const auto json = w.dump_state();
+    CHECK(contains(json, "\"initialized\":false"));
+    CHECK(contains(json, "\"tick\":0"));
+    CHECK(contains(json, "\"neighbour_count\":0"));
+    // No "self" block when uninitialised.
+    CHECK(json.find("\"self\":") == std::string::npos);
+}
+
+TEST_CASE("dump_state after init carries self entity + scheduler block") {
+    WorldConfig cfg;
+    cfg.swarm_id = 0x1234;
+    World w(cfg);
+    w.init();
+
+    const auto json = w.dump_state();
+    CHECK(contains(json, "\"swarm_id\":4660"));   // 0x1234
+    CHECK(contains(json, "\"initialized\":true"));
+    CHECK(contains(json, "\"self\":"));
+    CHECK(contains(json, "\"position\":"));
+    CHECK(contains(json, "\"velocity\":"));
+    CHECK(contains(json, "\"health\":100"));
+    CHECK(contains(json, "\"action_queue_size\":0"));
+    CHECK(contains(json, "\"comm_buffer_size\":0"));
+    CHECK(contains(json, "\"scheduler\":"));
+    CHECK(contains(json, "\"last_tick_timings\":"));
+}
+
+TEST_CASE("dump_state reflects mutated component state") {
+    World w(WorldConfig{});
+    w.init();
+    w.registry().get<mith::PositionComponent>(w.self_id()) =
+        mith::PositionComponent{1.5f, 2.5f, 3.5f};
+    w.registry().get<mith::HealthComponent>(w.self_id()).value = 42u;
+
+    const auto json = w.dump_state();
+    // Don't bind to the exact %.17g representation of floats; just verify
+    // the integer (health) and that "1.5" appears in position somewhere.
+    CHECK(contains(json, "\"health\":42"));
+    CHECK(contains(json, "1.5"));
+}

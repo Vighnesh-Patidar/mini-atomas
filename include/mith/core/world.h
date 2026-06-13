@@ -152,6 +152,12 @@ public:
     // dance once v0.2 wires it up.
     void rotate_identity() noexcept;
 
+    // Serialise the local runtime state to JSON (§14.1). Includes self-
+    // entity component summary, NeighbourTable contents, scheduler tick
+    // timings, swarm context. Allocates a std::string — for debugging,
+    // tests, and snapshot streaming, not the hot tick path.
+    std::string dump_state() const;
+
 private:
     WorldConfig                       config_;
     EntityRegistry                    registry_;

@@ -1347,9 +1347,9 @@ Architecture per Pre-v0.1 #1–#7. Inter-robot interaction lands through `Beacon
 - [ ] `SimTransport` + `SimBus` + `SimClock` (§9); `SimBus::make_world_config()` defaults to `SchedulerMode::Sequential`
 - [ ] `FlockingSystem` (Reynolds rules: separation, alignment, cohesion)
 - [ ] **Flocking demo — 10 simulated robots, matplotlib visualiser** (§9.3)
-- [ ] Observability primitives — `World::dump_state()`, `SystemScheduler::last_tick_timings()`, queue counters, `trace_level` with `component_registered` / `action_rejected` / `queue_overflow` events (§14)
+- [x] Observability primitives — `World::dump_state()`, `SystemScheduler::last_tick_timings()`, queue counters, `trace_level` with `component_registered` / `action_rejected` / `queue_overflow` events (§14)
 - [ ] Unit + integration tests (registry, scheduler, neighbour table, bounded queues, permission mask, flocking convergence — leveraging observability primitives for assertions)
-- [ ] CMake install target
+- [x] CMake install target
 
 ### Dormant in v0.1 (activated in v0.2)
 

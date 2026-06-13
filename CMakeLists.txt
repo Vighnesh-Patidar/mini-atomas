@@ -61,3 +61,44 @@ if(MITH_BUILD_TESTS AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt)
     enable_testing()
     add_subdirectory(tests)
 endif()
+
+# --- Install / package config ---
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
+install(TARGETS mith
+    EXPORT  mith-targets
+    LIBRARY  DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE  DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME  DESTINATION ${CMAKE_INSTALL_BINDIR}
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+install(DIRECTORY include/mith
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILES_MATCHING PATTERN "*.h"
+)
+
+install(EXPORT mith-targets
+    FILE      mith-atomas-targets.cmake
+    NAMESPACE mith::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/mith-atomas
+)
+
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/mith-atomas-config-version.cmake"
+    VERSION       ${PROJECT_VERSION}
+    COMPATIBILITY SameMinorVersion
+)
+
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/mith-atomas-config.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/mith-atomas-config.cmake"
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/mith-atomas
+)
+
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/mith-atomas-config.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/mith-atomas-config-version.cmake"
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/mith-atomas
+)
