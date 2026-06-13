@@ -123,6 +123,12 @@ using EntityID = uint32_t;
 constexpr EntityID INVALID_ENTITY = 0;
 ```
 
+**v0.1 entity count is exactly one per `World`** — the robot itself. The single entity holds all built-in self-state components from §4.4. Neighbours are not entities; they live in `NeighbourTable` (§7.4) as stale-by-default observations with their own lifecycle metadata. `World::self_id()` (§8) returns the one `EntityID`.
+
+The ECS API is shaped for N>1 (queries, archetypes, `create_entity`) but operates as a degenerate N=1 registry in v0.1. The shape stays for forward compatibility — multi-entity uses (sub-agents, task-as-entity, in-process multi-robot sim) are a **v0.5 extension on demand** behind a `WorldConfig::multi_entity` flag, not an API break. See §16 v0.5.
+
+Parallelism in MithAtomas comes from running **many systems concurrently on one self entity**, not from entity-parallel iteration. See §4.1 and §5.2.
+
 ### 3.3 Authentication & Spoofing
 
 Identity is uniquely *generated* by §3.1. It is not, by default, uniquely *provable* — a UUID v4 alone says nothing about whether the sender actually owns it. This section adds optional cryptographic binding so that claiming a `HierarchicalID` requires possessing the matching keypair.
@@ -236,6 +242,10 @@ Implementation lands in v0.2 alongside §3.3. v0.1 ships only `IdentityRotationP
 
 ### 4.1 Design: Hybrid Archetype Model
 
+**Parallelism axis.** MithAtomas's ECS is shaped for many-entity iteration but v0.1 runs at N=1 per `World` (§3.2). Concurrency comes from the `SystemScheduler` (§5.2) running multiple systems on the same self entity in parallel, gated by component-level read/write hazards — *not* from entity-parallel iteration within a single system. Data-parallel hot paths (e.g. iterating `NeighbourTable` in `FlockingSystem` or `BeaconSystem`) live inside the system's own loop and are independent of the entity model.
+
+The archetype machinery below is implementation flexibility for the eventual N>1 case; at N=1 it degenerates to per-component slots with O(1) access. The cost is one layer of indirection; the benefit is uniform state access and a non-breaking path to multi-entity.
+
 MithAtomas uses a **hybrid archetype ECS**:
 
 - **Hot components** (accessed every tick by multiple systems) are stored in **dense archetype-style arrays**. Components for the same type across all entities with that component are contiguous in memory. Cache-friendly. These are fixed at compile time via a registered set.
@@ -271,7 +281,7 @@ When a hot component is added or removed from an entity, the entity **migrates**
 
 ### 4.3 EntityRegistry
 
-The central registry owns all archetypes and the cold component maps.
+The central registry owns all archetypes and the cold component maps. The API below is shaped for multi-entity use; in v0.1 (§3.2) the registry holds exactly one entity, so `create_entity()`, `destroy_entity()`, and `view<>` are forward-compatibility hooks that degenerate to N=1 operations. Component access (`get`, `has`, `emplace`, `remove`) and `snapshot()` are the load-bearing parts at v0.1.
 
 ```cpp
 namespace mith {
@@ -334,37 +344,54 @@ These are registered by the runtime and always available:
 
 ### 5.1 System Interface
 
-A System is a unit of logic that reads and/or writes components. Systems are the only entities allowed to mutate component data.
+A System is a unit of logic that reads and/or writes components and/or non-component shared resources (`NeighbourTable`, transport buffers). Systems are the only code allowed to mutate component data or shared resources.
+
+The hazard graph is **two-axis**: components *and* resources. The original (component-only) model in earlier drafts silently allowed `BeaconSystem` to write `NeighbourTable` while `FlockingSystem` read from it. Making resources first-class closes that gap.
 
 ```cpp
 namespace mith {
+
+// Non-component shared state, tracked alongside components in the hazard graph.
+// Built-in identifiers are stable; user code can register more at init via
+// SystemScheduler::register_resource().
+enum class ResourceID : std::uint16_t {
+    NeighbourTable = 0,
+    TransportTx    = 1,
+    TransportRx    = 2,
+    // Spatial index (v0.3), identity verifier (v0.2), etc., land in this range.
+    First_User     = 0x1000,
+};
+
+struct SystemDescriptor {
+    std::string                  name;
+    std::vector<ComponentTypeID> reads_components;
+    std::vector<ComponentTypeID> writes_components;
+    std::vector<ResourceID>      reads_resources;
+    std::vector<ResourceID>      writes_resources;
+};
 
 class System {
 public:
     virtual ~System() = default;
 
-    // Declare read/write access — used by scheduler to build dependency graph
+    // Declare read/write access on both axes — drives the SystemScheduler DAG.
     virtual SystemDescriptor describe() const = 0;
 
-    // Called every tick. registry is passed as the access point.
+    // Called every tick. registry is passed as the access point for components;
+    // resources are accessed via SwarmContext (transport, NeighbourTable, etc.).
     virtual void tick(EntityRegistry& registry,
                       const SwarmContext& ctx,
                       float delta_time) = 0;
 };
 
-struct SystemDescriptor {
-    std::string              name;
-    std::vector<ComponentTypeID> reads;
-    std::vector<ComponentTypeID> writes;
-    // Systems with no shared writes can run in parallel
-};
-
 } // namespace mith
 ```
 
+Two systems conflict iff they share any (component or resource) where at least one writes. Two systems run in parallel iff they have no overlapping hazards on either axis. This is the standard ECS framework shape (Bevy, Specs, Flecs).
+
 ### 5.2 SystemScheduler — Async DAG Execution
 
-The scheduler builds a **dependency graph** from system descriptors at startup. Two systems have a dependency if one writes a component that the other reads or writes (write-after-read, read-after-write, write-after-write hazards).
+The scheduler builds a **dependency graph** from system descriptors at startup over both hazard axes (§5.1): components *and* resources. Two systems have a dependency if one writes a component or resource that the other reads or writes (W-W, R-W, W-R hazards on either axis).
 
 At each tick:
 1. Systems with no unresolved dependencies are dispatched to a **thread pool** concurrently.
@@ -397,13 +424,20 @@ private:
 
 The following systems ship with MithAtomas. All are optional — disable any in the `WorldConfig`.
 
+Reads / writes split into **components** (C:) and **resources** (R:) per the two-axis hazard model in §5.1. `ActionExecutorSystem` is no longer a single system — it is the **Action Handler Registry** described in §6.4.
+
 | System | Reads | Writes | Notes |
 |---|---|---|---|
-| `BeaconSystem` | Identity, Position, Velocity, Health, Role | CommBuffer (outbound) | Broadcasts StateVector; processes incoming beacons into NeighbourTable |
-| `FlockingSystem` | Position, Velocity, NeighbourTable | Velocity | Reynolds rules: separation, alignment, cohesion |
-| `TaskAllocSystem` | Role, NeighbourTable, BehaviourState | Role | Distributed task allocation via auction or threshold |
-| `FaultMonitorSystem` | Health, CommBuffer | Health, BehaviourState | Detects comm loss, hardware faults; triggers degraded-mode |
-| `ActionExecutorSystem` | ActionQueue | (all writable) | Drains ActionQueue, validates and applies actions |
+| `BeaconSystem` | C: Identity, Position, Velocity, Health, Role · R: `TransportRx` | C: CommBuffer (outbound) · R: `NeighbourTable`, `TransportTx` | Broadcasts StateVector; processes incoming beacons into NeighbourTable |
+| `FlockingSystem` | C: Position, Velocity · R: `NeighbourTable` | C: Velocity | Reynolds rules: separation, alignment, cohesion |
+| `TaskAllocSystem` | C: Role, BehaviourState · R: `NeighbourTable` | C: Role | Distributed task allocation via auction or threshold |
+| `FaultMonitorSystem` | C: Health, CommBuffer | C: Health, BehaviourState | Detects comm loss, hardware faults; triggers degraded-mode |
+| `ActionValidatorSystem` | C: ActionQueue, permission state | C: ActionQueue (marks rejected) | Single barrier before action handlers — rejects actions violating permission masks (§6.4, §13.2) |
+| `MoveActionHandler` | C: ActionQueue | C: Velocity | Drains MOVE actions, updates velocity |
+| `TransmitActionHandler` | C: ActionQueue | R: `TransportTx` | Drains TRANSMIT actions, enqueues `Message` for outbound transport |
+| `<user handler>` | C: ActionQueue + user-declared | user-declared bounded set | Registered via `World::register_action_handler<H>(action_type)` |
+
+Action handlers writing disjoint components/resources run in parallel. The shared read on `ActionQueueComponent` is R-R, no conflict.
 
 ---
 
@@ -561,15 +595,44 @@ class ThresholdProvider : public mith::ActionProvider {
 };
 ```
 
-### 6.4 ActionExecutorSystem
+### 6.4 Action Handler Registry
 
-`ActionExecutorSystem` runs last in every tick (it has a write dependency on almost everything). It:
+Earlier drafts had a single `ActionExecutorSystem` that declared "writes (all writable)" — which collapsed the scheduler DAG into a single barrier every tick, killing parallelism. The fix is to **split execution into handler systems**, each with a bounded, statically declared write set that the §5.1 hazard graph can reason about.
 
-1. Drains `ActionQueueComponent` for each entity (priority-sorted).
-2. Validates `Action.modifies` against a permission mask (configurable per entity, useful for degraded mode).
-3. Dispatches to registered `ActionHandler` functions keyed by `ActionTypeID`.
-4. Built-in handlers: MOVE updates `VelocityComponent`, TRANSMIT enqueues a `Message` to `CommBufferComponent`, etc.
-5. User registers custom handlers for `ActionTypeID >= actions::CUSTOM`.
+Action execution becomes a small pipeline of regular Systems (visible in §5.3's table):
+
+1. **`ActionValidatorSystem`** runs once. Reads `ActionQueueComponent` and the permission mask (configurable per entity, used by degraded mode — §13.2). Marks rejected actions in-place; does not dispatch.
+2. **Action handler systems** run concurrently. Each handler is a `System` registered for one `ActionTypeID`. It reads `ActionQueueComponent`, drains the actions matching its type that survived validation, and applies its declared writes. Handlers writing disjoint components/resources run in parallel.
+
+Built-in handlers ship with the runtime:
+
+- `MoveActionHandler` — writes `VelocityComponent`.
+- `TransmitActionHandler` — writes the `TransportTx` resource (enqueues a `Message` for outbound transport).
+- `HoverActionHandler` — IDLE-like, no writes declared.
+- Additional handlers land alongside their action types.
+
+User code registers custom handlers:
+
+```cpp
+class MyScanHandler : public mith::System {
+public:
+    mith::SystemDescriptor describe() const override {
+        return {
+            "MyScanHandler",
+            /* reads_components  */ {component_id<ActionQueueComponent>()},
+            /* writes_components */ {component_id<MyScanResultComponent>()},
+            /* reads_resources   */ {},
+            /* writes_resources  */ {},
+        };
+    }
+    void tick(mith::EntityRegistry&, const mith::SwarmContext&, float) override { /* ... */ }
+};
+
+// At World init:
+world.register_action_handler<MyScanHandler>(actions::CUSTOM + 1);
+```
+
+Each registration becomes a `System` in the scheduler graph with the handler's declared writes — same shape as any built-in system, fully visible to the DAG. There is no special "action executor" code path; action dispatch is just N parallel systems sharing a read on `ActionQueueComponent`.
 
 ---
 
@@ -692,7 +755,7 @@ public:
 
 ## 8. World — Top-Level Runtime
 
-`World` is the root object. One per robot process.
+`World` is the root object. One instance per robot process; holds exactly one entity (the robot itself, §3.2). `World` is *not* a wrapper over that entity — it is "robot-as-runtime-process": registry + scheduler + neighbour table + transport + swarm context + lifecycle. The entity inside is "robot-as-embodied-state" — composable self-state via §4.4 components.
 
 ```cpp
 namespace mith {
@@ -712,7 +775,15 @@ class World {
 public:
     explicit World(WorldConfig config, std::unique_ptr<TransportLayer> transport);
 
-    // Entity management
+    // The one self entity (§3.2). At v0.1 N=1; reserved as a forward-compat handle.
+    EntityID                 self_id() const noexcept;
+
+    // Shortcut for `registry.get<IdentityComponent>(self_id()).id`. Stable across the
+    // lifetime of this World unless identity rotation (§3.4) is enabled.
+    const HierarchicalID&    identity() const noexcept;
+
+    // Entity management — degenerate at v0.1 (registry already holds the one self).
+    // Reserved for v1.0+ multi-entity uses (sub-agents, task-as-entity).
     EntityID    create_entity();
     void        set_action_provider(EntityID id, std::unique_ptr<ActionProvider> provider);
 
@@ -1022,9 +1093,9 @@ The schedule below is dependency-ordered: each tier resolves blockers for the ne
 
 ### Pre-v0.1 — Design resolution (doc-only, blocks implementation)
 
-- [ ] **ECS identity model** — commit to one entity per `World`, or describe what additional entities represent. Touches every system signature.
-- [ ] **Scheduler hazard model** — promote `NeighbourTable`, comm buffers, and transport state to first-class hazard nodes in the DAG alongside `ComponentTypeID`. Required before any parallelism claim is sound (§5.2).
-- [ ] **`ActionExecutorSystem` write set** — split into typed handlers with bounded declared writes, or document the tick-wide barrier behaviour explicitly (§6.4).
+- [x] **ECS identity model** — **resolved**: one entity per `World`, representing the robot itself. Neighbours stay in `NeighbourTable` (§7.4), not as entities. Parallelism is system-level on the one self entity. See §3.2 / §4.1 / §8. Multi-entity is a v0.5 extension on demand behind a `WorldConfig::multi_entity` flag, not an API break.
+- [x] **Scheduler hazard model** — **resolved**: two-axis hazard graph (components + typed resources). `NeighbourTable`, `TransportTx`, `TransportRx` are first-class `ResourceID`s; user resources register at init. See §5.1 / §5.2 / §5.3.
+- [x] **`ActionExecutorSystem` write set** — **resolved**: split into the **Action Handler Registry** — `ActionValidatorSystem` plus N typed handler systems, each declaring bounded writes visible to the DAG. No tick-wide barrier. See §6.4 / §5.3.
 - [ ] **Hot-component registration** — compile-time set (own the recompile-to-extend cost) or runtime-registerable (own the perf delta). Pick one and update §4.1.
 - [ ] **Determinism scope** — pin sim scheduler to single-threaded, or define schedule capture/replay. Both claims as written conflict (§5.2 vs §9.2).
 - [ ] **Bounded-queue overflow contract** — per queue (`ActionQueueComponent`, `CommBufferComponent`): drop-oldest / drop-newest / fault-trigger.
@@ -1079,6 +1150,12 @@ Partition behaviour is part of the public contract — must land before API free
 
 - [ ] **TaskAllocSystem partition merge** — epoch-leader or version-vector reconciliation for role/assignment state after partition heal. Depends on v0.3 clock sync.
 - [ ] **Fault-injection integration tests** exercising the merge path, not just neighbour-table age-out.
+
+### v0.5 — Multi-Entity Opt-In (on demand)
+
+Single placeholder tier — expanded only if a concrete research use case materialises during v0.2–v0.4. Pre-v0.1 #1 committed to N=1 with the API shaped for N>1 (§3.2, §4.3); this tier is the lift.
+
+- [ ] **Multi-entity opt-in** behind `WorldConfig::multi_entity = true` — only if a concrete research use case (sub-agents sharing transport, hierarchical-policy entities, runtime-managed predictive selves) materialises during v0.2–v0.4. Otherwise the N=1 constraint stays through v1.0. Lift includes: per-entity scheduler hazard granularity, multi-entity `ActionProvider` call shape, per-entity `IdentityComponent` semantics, and an integration test.
 
 ### v1.0 — Stable API
 - [ ] API stability guarantee (covers a runtime whose architectural questions are all answered)
