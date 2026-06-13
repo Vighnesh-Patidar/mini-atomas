@@ -841,36 +841,67 @@ The runtime has no global coordinator. Each node operates independently. If a su
 
 ## 15. Roadmap
 
+The schedule below is dependency-ordered: each tier resolves blockers for the next. Pre-v0.1 is a doc-only phase — open architectural questions must be answered in §3–§9 before v0.1 code can be coherently written.
+
+### Pre-v0.1 — Design resolution (doc-only, blocks implementation)
+
+- [ ] **ECS identity model** — commit to one entity per `World`, or describe what additional entities represent. Touches every system signature.
+- [ ] **Scheduler hazard model** — promote `NeighbourTable`, comm buffers, and transport state to first-class hazard nodes in the DAG alongside `ComponentTypeID`. Required before any parallelism claim is sound (§5.2).
+- [ ] **`ActionExecutorSystem` write set** — split into typed handlers with bounded declared writes, or document the tick-wide barrier behaviour explicitly (§6.4).
+- [ ] **Hot-component registration** — compile-time set (own the recompile-to-extend cost) or runtime-registerable (own the perf delta). Pick one and update §4.1.
+- [ ] **Determinism scope** — pin sim scheduler to single-threaded, or define schedule capture/replay. Both claims as written conflict (§5.2 vs §9.2).
+- [ ] **Bounded-queue overflow contract** — per queue (`ActionQueueComponent`, `CommBufferComponent`): drop-oldest / drop-newest / fault-trigger.
+- [ ] **Action permission mask** — where it lives, who writes it, how degraded mode mutates it (§6.4, §13.2).
+- [ ] **v0.1 scope coherence** — pull `BeaconSystem` + `NeighbourTable` into v0.1 (the flocking demo depends on them), or push the flocking demo to v0.2. Decide here.
+- [ ] **Visualiser dependency** — gate `nlohmann/json` behind `MITH_BUILD_SIM`; drop the "no compile-time dependency" claim in §9.3 or scope it to the core library only.
+
 ### v0.1 — Core Runtime (current target)
 - [ ] EntityRegistry with hybrid archetype ECS
-- [ ] SystemScheduler with async DAG execution
+- [ ] SystemScheduler with async DAG execution (per pre-v0.1 hazard model)
 - [ ] HierarchicalID + UUID generation
-- [ ] ActionProvider interface + ActionExecutorSystem
+- [ ] ActionProvider interface + ActionExecutorSystem (per pre-v0.1 write-set decision)
 - [ ] Built-in hot components (Position, Velocity, Health, Role, BehaviourState, ActionQueue, CommBuffer)
 - [ ] SimTransport + SimBus + SimClock
 - [ ] FlockingSystem (Reynolds rules)
+- [ ] `BeaconSystem` + `NeighbourTable` *(if pre-v0.1 resolved scope this way)*
 - [ ] Flocking demo (50 simulated robots, matplotlib visualiser)
 - [ ] Unit tests for registry, scheduler, neighbour table
 - [ ] CMake install target
 
-### v0.2 — Comms + Fault
-- [ ] BeaconSystem + NeighbourTable
+### v0.2 — Distributed Bootstrap & Channel Separation
+
+Must precede any honest multi-robot claim — the current init path in §3.1 has a hidden coordinator.
+
+- [ ] **Discovery / bootstrap protocol** — how robots acquire `SwarmID` and find peers without a mission controller. Resolves the §0 ↔ §3.1 contradiction.
+- [ ] **Channel-aware transport** — split `TransportLayer` into beacon + message transports, or define a multiplexing contract. Lets beacons ride lossy broadcast media while messages use reliable links.
 - [ ] UDPMulticastTransport
 - [ ] FaultMonitorSystem + degraded mode
-- [ ] TaskAllocSystem (threshold-based)
+- [ ] TaskAllocSystem (threshold-based, pre-partition-merge)
 - [ ] Integration test: fault injection in sim
 
-### v0.3 — Hardware + Examples
+### v0.3 — Time & Space
+
+Both required before scale and fault claims hold. Clock sync must land before v0.4's partition merge.
+
+- [ ] **Clock-sync layer** — pairwise offset estimation piggy-backed on beacons. Makes message timestamps comparable across robots.
+- [ ] **Spatial index on `NeighbourTable`** — hash-grid keyed by position. Required for the v1.0 1000-entity benchmark; without it FlockingSystem is O(N²).
 - [ ] SerialTransport
 - [ ] RL policy demo (dummy policy, shows interface)
 - [ ] Tested on Raspberry Pi 4 (reference embedded target)
 - [ ] SerialTransport validated on physical robot pair
 
+### v0.4 — Fault Semantics
+
+Partition behaviour is part of the public contract — must land before API freeze.
+
+- [ ] **TaskAllocSystem partition merge** — epoch-leader or version-vector reconciliation for role/assignment state after partition heal. Depends on v0.3 clock sync.
+- [ ] **Fault-injection integration tests** exercising the merge path, not just neighbour-table age-out.
+
 ### v1.0 — Stable API
-- [ ] API stability guarantee
+- [ ] API stability guarantee (covers a runtime whose architectural questions are all answered)
 - [ ] Full documentation (Doxygen)
 - [ ] CI (GitHub Actions): build + test on Linux/macOS/ARM
-- [ ] Performance benchmarks (1000-entity sim)
+- [ ] Performance benchmarks (1000-entity sim, leveraging v0.3 spatial index)
 
 ### Post v1.0
 - [ ] Python bindings (pybind11)
