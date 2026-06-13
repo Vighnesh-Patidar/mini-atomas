@@ -34,6 +34,10 @@ class EntityRegistry;   // fwd — defined in registry.h
 class TraceSink;        // fwd — defined in trace_sink.h. Only scheduler.cpp
                         // pulls the full header.
 
+namespace detail {
+class ThreadPool;       // fwd — internal to scheduler.cpp (Parallel mode only)
+}
+
 enum class SchedulerMode : std::uint8_t {
     Parallel    = 0,   // v0.1 first slice: not yet implemented (tick aborts)
     Sequential  = 1,   // default for SystemScheduler; SimBus also defaults to this
@@ -53,7 +57,12 @@ namespace detail {
 
 class SystemScheduler {
 public:
-    explicit SystemScheduler(SchedulerMode mode = SchedulerMode::Sequential) noexcept;
+    explicit SystemScheduler(SchedulerMode mode = SchedulerMode::Sequential,
+                              std::size_t   thread_pool_size = 0) noexcept;
+
+    // Defined in scheduler.cpp because unique_ptr<detail::ThreadPool>
+    // requires the full type at destruction.
+    ~SystemScheduler();
 
     // Register a system. Ownership transferred. The system's name (from its
     // SystemDescriptor) must be unique within this scheduler.
@@ -88,11 +97,21 @@ public:
 private:
     void emit_tick_event_(const SwarmContext& ctx, float delta_time) noexcept;
 
-    SchedulerMode                         mode_;
-    std::vector<std::unique_ptr<System>>  systems_;
-    std::vector<std::size_t>              order_;     // indices into systems_
-    bool                                  built_ = false;
-    TraceSink*                            sink_  = nullptr;
+    // Parallel-mode dispatch (defined in scheduler.cpp).
+    void tick_parallel_(EntityRegistry& registry,
+                        const SwarmContext& ctx,
+                        float delta_time);
+    void build_hazard_graph_();
+
+    SchedulerMode                          mode_;
+    std::size_t                            thread_pool_size_;
+    std::vector<std::unique_ptr<System>>   systems_;
+    std::vector<std::size_t>               order_;             // name-sorted index permutation
+    std::vector<std::vector<std::size_t>>  dependents_;        // Parallel only — dependents_[i] = systems blocked on i
+    std::vector<int>                       in_degree_initial_; // Parallel only — initial in-degree per system
+    std::unique_ptr<detail::ThreadPool>    pool_;              // Parallel only
+    bool                                   built_ = false;
+    TraceSink*                             sink_  = nullptr;
 };
 
 } // namespace mith

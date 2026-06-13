@@ -24,14 +24,14 @@ namespace detail {
 World::World(WorldConfig config) noexcept
     : config_(config)
     , registry_(config.registration_policy)
-    , scheduler_(config.scheduler_mode) {
+    , scheduler_(config.scheduler_mode, config.thread_pool_size) {
     context_.swarm_id = config_.swarm_id;
 }
 
 World::World(WorldConfig config, std::unique_ptr<TransportLayer> transport) noexcept
     : config_(config)
     , registry_(config.registration_policy)
-    , scheduler_(config.scheduler_mode)
+    , scheduler_(config.scheduler_mode, config.thread_pool_size)
     , transport_(std::move(transport)) {
     context_.swarm_id = config_.swarm_id;
 }

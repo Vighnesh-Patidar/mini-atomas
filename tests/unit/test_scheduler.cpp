@@ -6,8 +6,10 @@
 #include "mith/core/system.h"
 #include "mith/core/trace_sink.h"
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -417,4 +419,157 @@ TEST_CASE("tick_completed fires AFTER systems run (systems see no event yet)") {
 
     CHECK(observer_raw->observed_lines_at_tick == 0u);   // event not yet emitted
     CHECK(sink.lines.size() == 1u);                       // emitted after tick
+}
+
+// ------------------------------------------------------------------------
+// Parallel mode — hazard DAG + thread pool dispatch.
+// ------------------------------------------------------------------------
+
+TEST_CASE("Parallel mode: empty scheduler ticks without crashing") {
+    SystemScheduler sched(SchedulerMode::Parallel);
+    REQUIRE(sched.build_graph() == SchedulerStatus::Ok);
+    EntityRegistry reg;
+    SwarmContext   ctx;
+    sched.tick(reg, ctx, 0.05f);
+}
+
+namespace {
+
+struct AtomicCounterSystem : System {
+    std::string       name_;
+    std::atomic<int>* counter_;
+    AtomicCounterSystem(std::string n, std::atomic<int>* c)
+        : name_(std::move(n)), counter_(c) {}
+    SystemDescriptor describe() const override {
+        return SystemDescriptor{name_, {}, {}, {}, {}};
+    }
+    void tick(EntityRegistry&, const SwarmContext&, float) override {
+        counter_->fetch_add(1, std::memory_order_relaxed);
+    }
+};
+
+struct LoggingProbe : System {
+    std::string                name_;
+    SystemDescriptor           desc_;
+    std::vector<std::string>*  log_;
+    std::mutex*                mtx_;
+    LoggingProbe(std::string n, SystemDescriptor d,
+                  std::vector<std::string>* log, std::mutex* m)
+        : name_(std::move(n)), desc_(std::move(d)), log_(log), mtx_(m) {
+        desc_.name = name_;
+    }
+    SystemDescriptor describe() const override { return desc_; }
+    void tick(EntityRegistry&, const SwarmContext&, float) override {
+        std::lock_guard<std::mutex> lk(*mtx_);
+        log_->push_back(name_);
+    }
+};
+
+} // namespace
+
+TEST_CASE("Parallel mode: all independent systems run exactly once per tick") {
+    std::atomic<int> counter{0};
+    SystemScheduler  sched(SchedulerMode::Parallel);
+    for (const char* name : {"A", "B", "C", "D", "E", "F"}) {
+        REQUIRE(sched.register_system(
+                    std::make_unique<AtomicCounterSystem>(name, &counter))
+                == SchedulerStatus::Ok);
+    }
+    REQUIRE(sched.build_graph() == SchedulerStatus::Ok);
+
+    EntityRegistry reg;
+    SwarmContext   ctx;
+    sched.tick(reg, ctx, 0.05f);
+
+    CHECK(counter.load() == 6);
+}
+
+TEST_CASE("Parallel mode: hazardous systems run in lex order") {
+    // Reader and Writer share an int component (synthetic). The hazard
+    // graph serialises them; lex-smaller name runs first.
+    SystemDescriptor reader_desc;
+    reader_desc.reads_components = {mith::component_id<int>()};
+    SystemDescriptor writer_desc;
+    writer_desc.writes_components = {mith::component_id<int>()};
+
+    std::vector<std::string> log;
+    std::mutex               log_mtx;
+
+    SystemScheduler sched(SchedulerMode::Parallel);
+    REQUIRE(sched.register_system(std::make_unique<LoggingProbe>(
+                "Reader", reader_desc, &log, &log_mtx))
+            == SchedulerStatus::Ok);
+    REQUIRE(sched.register_system(std::make_unique<LoggingProbe>(
+                "Writer", writer_desc, &log, &log_mtx))
+            == SchedulerStatus::Ok);
+    REQUIRE(sched.build_graph() == SchedulerStatus::Ok);
+
+    EntityRegistry reg;
+    SwarmContext   ctx;
+    sched.tick(reg, ctx, 0.05f);
+
+    REQUIRE(log.size() == 2u);
+    CHECK(log[0] == "Reader");
+    CHECK(log[1] == "Writer");
+}
+
+TEST_CASE("Parallel mode: multiple ticks all run all systems") {
+    std::atomic<int> counter{0};
+    SystemScheduler  sched(SchedulerMode::Parallel);
+    for (const char* name : {"X", "Y", "Z"}) {
+        REQUIRE(sched.register_system(
+                    std::make_unique<AtomicCounterSystem>(name, &counter))
+                == SchedulerStatus::Ok);
+    }
+    REQUIRE(sched.build_graph() == SchedulerStatus::Ok);
+
+    EntityRegistry reg;
+    SwarmContext   ctx;
+    for (int i = 0; i < 10; ++i) sched.tick(reg, ctx, 0.05f);
+
+    CHECK(counter.load() == 30);   // 3 systems × 10 ticks
+}
+
+TEST_CASE("Parallel mode: emits tick_completed per tick") {
+    JsonCapturingSink sink;
+    SystemScheduler   sched(SchedulerMode::Parallel);
+    sched.set_trace_sink(&sink);
+    REQUIRE(sched.build_graph() == SchedulerStatus::Ok);
+
+    EntityRegistry reg;
+    SwarmContext   ctx;
+    sched.tick(reg, ctx, 0.05f);
+    sched.tick(reg, ctx, 0.05f);
+
+    CHECK(sink.lines.size() == 2u);
+    for (const auto& line : sink.lines) {
+        CHECK(contains(line, "\"event\":\"tick_completed\""));
+    }
+}
+
+TEST_CASE("Parallel mode: resource hazards serialise too") {
+    SystemDescriptor reads_nt;
+    reads_nt.reads_resources = {mith::ResourceID::NeighbourTable};
+    SystemDescriptor writes_nt;
+    writes_nt.writes_resources = {mith::ResourceID::NeighbourTable};
+
+    std::vector<std::string> log;
+    std::mutex               log_mtx;
+
+    SystemScheduler sched(SchedulerMode::Parallel);
+    REQUIRE(sched.register_system(std::make_unique<LoggingProbe>(
+                "B_writes", writes_nt, &log, &log_mtx))
+            == SchedulerStatus::Ok);
+    REQUIRE(sched.register_system(std::make_unique<LoggingProbe>(
+                "A_reads", reads_nt, &log, &log_mtx))
+            == SchedulerStatus::Ok);
+    REQUIRE(sched.build_graph() == SchedulerStatus::Ok);
+
+    EntityRegistry reg;
+    SwarmContext   ctx;
+    sched.tick(reg, ctx, 0.05f);
+
+    REQUIRE(log.size() == 2u);
+    CHECK(log[0] == "A_reads");
+    CHECK(log[1] == "B_writes");
 }
