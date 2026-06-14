@@ -14,7 +14,8 @@ namespace mith {
 
 BeaconSystem::BeaconSystem(World& world) noexcept
     : neighbour_table_(&world.neighbour_table())
-    , transport_(world.transport())
+    , beacon_transport_(world.beacon_transport())
+    , message_transport_(world.message_transport())
     , beacon_period_s_(world.config().beacon_rate_hz > 0.0f
                         ? 1.0f / world.config().beacon_rate_hz
                         : 0.0f)
@@ -49,7 +50,9 @@ void BeaconSystem::tick(EntityRegistry& registry,
         neighbour_table_->age_out(ctx.elapsed_time_s, neighbour_timeout_s_);
     }
 
-    if (!transport_) return;   // no transport — nothing more to do this tick
+    if (!beacon_transport_ && !message_transport_) {
+        return;   // no transports at all — nothing more to do this tick
+    }
 
     // 1. Build StateVector from the self entity. All built-in hot
     //    components are guaranteed emplaced after World::init().
@@ -62,30 +65,36 @@ void BeaconSystem::tick(EntityRegistry& registry,
     sv.state     = registry.get<BehaviourStateComponent>(self);
     sv.tick      = static_cast<std::uint32_t>(ctx.tick_count);
 
-    // 2. Send if the beacon period has elapsed.
+    // 2. Send beacon if the beacon period has elapsed and the beacon
+    //    channel exists + supports it.
     time_since_last_beacon_s_ += delta_time;
-    if (beacon_period_s_ > 0.0f && time_since_last_beacon_s_ >= beacon_period_s_) {
-        transport_->send_beacon(sv);
+    if (beacon_period_s_ > 0.0f
+        && time_since_last_beacon_s_ >= beacon_period_s_
+        && beacon_transport_
+        && beacon_transport_->supports_beacons()) {
+        beacon_transport_->send_beacon(sv);
         time_since_last_beacon_s_ = 0.0f;
     }
 
-    // 3. Drain inbound traffic.
-    std::vector<StateVector> beacons;
-    std::vector<Message>     messages;
-    transport_->poll(beacons, messages);
-
-    // 4. Upsert received beacons (skip the unlikely echo of our own ID).
-    for (const auto& b : beacons) {
-        if (b.id == sv.id) continue;
-        neighbour_table_->upsert(b, ctx.elapsed_time_s);
+    // 3. Drain inbound beacons (beacon channel).
+    if (beacon_transport_ && beacon_transport_->supports_beacons()) {
+        std::vector<StateVector> beacons;
+        beacon_transport_->poll_beacons(beacons);
+        for (const auto& b : beacons) {
+            if (b.id == sv.id) continue;          // skip our own echo
+            neighbour_table_->upsert(b, ctx.elapsed_time_s);
+        }
     }
 
-    // 5. Push messages into the local CommBufferComponent queue. Overflow
-    //    follows the DropOldest policy declared on the queue (§4.4) —
-    //    push() returns true on accept, false on (impossible-here) reject.
-    auto& cb = registry.get<CommBufferComponent>(self);
-    for (auto& m : messages) {
-        cb.queue.push(std::move(m));
+    // 4. Drain inbound messages (message channel — may be a different
+    //    transport entirely).
+    if (message_transport_ && message_transport_->supports_messages()) {
+        std::vector<Message> messages;
+        message_transport_->poll_messages(messages);
+        auto& cb = registry.get<CommBufferComponent>(self);
+        for (auto& m : messages) {
+            cb.queue.push(std::move(m));
+        }
     }
 }
 

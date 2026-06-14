@@ -20,7 +20,8 @@ namespace mith {
 
 class World;
 class NeighbourTable;
-class TransportLayer;
+class BeaconTransport;
+class MessageTransport;
 
 class BeaconSystem : public System {
 public:
@@ -32,11 +33,12 @@ public:
               float delta_time) override;
 
 private:
-    NeighbourTable* neighbour_table_;
-    TransportLayer* transport_;
-    float           beacon_period_s_;
-    float           neighbour_timeout_s_;
-    float           time_since_last_beacon_s_ = 0.0f;
+    NeighbourTable*   neighbour_table_;
+    BeaconTransport*  beacon_transport_;
+    MessageTransport* message_transport_;
+    float             beacon_period_s_;
+    float             neighbour_timeout_s_;
+    float             time_since_last_beacon_s_ = 0.0f;
 };
 
 } // namespace mith

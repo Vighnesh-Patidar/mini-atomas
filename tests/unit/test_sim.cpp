@@ -141,7 +141,7 @@ TEST_CASE("beacon sent by one World is delivered to the other (in range)") {
 
     std::vector<StateVector> beacons;
     std::vector<Message>     messages;
-    b->transport()->poll(beacons, messages);
+    b->transport()->poll_beacons(beacons); b->transport()->poll_messages(messages);
 
     REQUIRE(beacons.size() == 1u);
     CHECK(beacons[0].id == a->identity());
@@ -164,7 +164,7 @@ TEST_CASE("beacon is NOT delivered to a World out of range") {
 
     std::vector<StateVector> beacons;
     std::vector<Message>     messages;
-    b->transport()->poll(beacons, messages);
+    b->transport()->poll_beacons(beacons); b->transport()->poll_messages(messages);
 
     CHECK(beacons.empty());      // out of range
     CHECK(messages.empty());
@@ -181,7 +181,7 @@ TEST_CASE("sender does NOT receive its own beacon") {
 
     std::vector<StateVector> beacons;
     std::vector<Message>     messages;
-    a->transport()->poll(beacons, messages);
+    a->transport()->poll_beacons(beacons); a->transport()->poll_messages(messages);
 
     CHECK(beacons.empty());      // no self-loop
 }
@@ -205,12 +205,12 @@ TEST_CASE("broadcast Message follows the range filter") {
 
     std::vector<StateVector> beacons;
     std::vector<Message>     messages;
-    b->transport()->poll(beacons, messages);
+    b->transport()->poll_beacons(beacons); b->transport()->poll_messages(messages);
     CHECK(messages.size() == 1u);
     if (!messages.empty()) CHECK(messages[0].seq == 42u);
 
     messages.clear();
-    c->transport()->poll(beacons, messages);
+    c->transport()->poll_beacons(beacons); c->transport()->poll_messages(messages);
     CHECK(messages.empty());      // C is out of range
 }
 
@@ -234,11 +234,11 @@ TEST_CASE("directed Message delivers only to the named recipient") {
     std::vector<Message>     messages;
 
     // B (not addressed) gets nothing.
-    b->transport()->poll(beacons, messages);
+    b->transport()->poll_beacons(beacons); b->transport()->poll_messages(messages);
     CHECK(messages.empty());
 
     // C (addressed) gets it despite range.
-    c->transport()->poll(beacons, messages);
+    c->transport()->poll_beacons(beacons); c->transport()->poll_messages(messages);
     REQUIRE(messages.size() == 1u);
     CHECK(messages[0].seq == 99u);
     CHECK(messages[0].recipient == c->identity());
@@ -258,10 +258,10 @@ TEST_CASE("poll() drains the inbox — subsequent polls return empty") {
     std::vector<StateVector> beacons;
     std::vector<Message>     messages;
 
-    b->transport()->poll(beacons, messages);
+    b->transport()->poll_beacons(beacons); b->transport()->poll_messages(messages);
     CHECK(beacons.size() == 2u);
 
-    b->transport()->poll(beacons, messages);
+    b->transport()->poll_beacons(beacons); b->transport()->poll_messages(messages);
     CHECK(beacons.empty());      // inbox drained
 }
 

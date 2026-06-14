@@ -23,11 +23,8 @@ class NullTransport : public TransportLayer {
 public:
     bool send_beacon(const StateVector&) override { return true; }
     bool send_message(const Message&) override    { return true; }
-    void poll(std::vector<StateVector>& beacons_out,
-              std::vector<Message>&     messages_out) override {
-        beacons_out.clear();
-        messages_out.clear();
-    }
+    void poll_beacons(std::vector<StateVector>& out)  override { out.clear(); }
+    void poll_messages(std::vector<Message>& out)     override { out.clear(); }
     bool is_healthy() const override { return true; }
 };
 
@@ -40,11 +37,8 @@ public:
 
     bool send_beacon(const StateVector&) override { ++beacons_sent;  return true; }
     bool send_message(const Message&) override    { ++messages_sent; return true; }
-    void poll(std::vector<StateVector>& beacons_out,
-              std::vector<Message>&     messages_out) override {
-        beacons_out.clear();
-        messages_out.clear();
-    }
+    void poll_beacons(std::vector<StateVector>& out)  override { out.clear(); }
+    void poll_messages(std::vector<Message>& out)     override { out.clear(); }
     bool is_healthy() const override { return healthy; }
 };
 
@@ -63,8 +57,9 @@ TEST_CASE("TransportLayer is usable as an abstract base") {
 
     std::vector<StateVector> beacons{StateVector{}};
     std::vector<Message>     messages{Message{}};
-    poly->poll(beacons, messages);
-    CHECK(beacons.empty());     // poll clears the output vectors
+    poly->poll_beacons(beacons);
+    poly->poll_messages(messages);
+    CHECK(beacons.empty());
     CHECK(messages.empty());
 }
 

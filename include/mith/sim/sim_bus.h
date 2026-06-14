@@ -86,11 +86,10 @@ private:
     void deliver_beacon_(std::size_t from_idx, const StateVector& sv);
     void deliver_message_(std::size_t from_idx, const Message& msg);
 
-    // Called by SimTransport::poll(). Drains the participant's inbox
-    // into the caller's vectors.
-    void drain_inbox_(std::size_t idx,
-                      std::vector<StateVector>& beacons_out,
-                      std::vector<Message>&     messages_out);
+    // Called by SimTransport::poll_beacons / poll_messages. Drains the
+    // per-channel inbox into the caller's vector.
+    void drain_inbox_beacons_(std::size_t idx, std::vector<StateVector>& out);
+    void drain_inbox_messages_(std::size_t idx, std::vector<Message>& out);
 
     struct Participant {
         World*                    world;   // not owned; init() generates the HID
@@ -110,8 +109,8 @@ class SimTransport : public TransportLayer {
 public:
     bool send_beacon(const StateVector& sv) override;
     bool send_message(const Message& msg) override;
-    void poll(std::vector<StateVector>& beacons_out,
-              std::vector<Message>&     messages_out) override;
+    void poll_beacons(std::vector<StateVector>& out)  override;
+    void poll_messages(std::vector<Message>& out)     override;
     bool is_healthy() const override;
 
 private:

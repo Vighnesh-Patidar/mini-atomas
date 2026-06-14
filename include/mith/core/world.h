@@ -45,7 +45,9 @@
 namespace mith {
 
 class TraceSink;       // fwd
-class TransportLayer;  // fwd — full type in mith/comms/transport.h
+class TransportLayer;    // fwd — full type in mith/comms/transport.h
+class BeaconTransport;
+class MessageTransport;
 
 // Mirrors §8 WorldConfig. SwarmID 0 is reserved (broadcast / unset);
 // production deployments use 1..0xFFFE.
@@ -80,11 +82,18 @@ class World {
 public:
     explicit World(WorldConfig config) noexcept;
 
-    // Transport-taking ctor. The transport is held but not actively
-    // exercised until BeaconSystem (§5.3, v0.2) lands and starts driving
-    // it; in v0.1 it serves as the wiring point for sim and (eventually)
-    // hardware transports.
+    // Unified-transport ctor — the transport carries both channels.
+    // SimTransport (§9.1) and the future UDPMulticastTransport (§7.5)
+    // take this path.
     World(WorldConfig config, std::unique_ptr<TransportLayer> transport) noexcept;
+
+    // Split-transport ctor — beacons and messages ride different
+    // transports (channel-aware, §7.5 / §16 v0.2). Either pointer may be
+    // null if that channel is unused. BeaconSystem honours each
+    // transport's supports_*() flag at tick time.
+    World(WorldConfig config,
+          std::unique_ptr<BeaconTransport>  beacon_transport,
+          std::unique_ptr<MessageTransport> message_transport) noexcept;
 
     // Destructor declared here, defined in world.cpp where TransportLayer's
     // full type is visible. Required because std::unique_ptr<TransportLayer>'s
@@ -128,10 +137,19 @@ public:
     SystemScheduler&        scheduler() noexcept;
     const SystemScheduler&  scheduler() const noexcept;
 
-    // Nullable — the transport-less ctor leaves this null. BeaconSystem
-    // consumes this via send_beacon / send_message / poll.
+    // Combined transport accessor — non-null only when the unified ctor
+    // was used. For channel-aware code, prefer beacon_transport() /
+    // message_transport().
     TransportLayer*         transport() noexcept;
     const TransportLayer*   transport() const noexcept;
+
+    // Per-channel accessors. Resolve to the unified transport (if set)
+    // or the corresponding split transport. May return null if no
+    // transport covers that channel.
+    BeaconTransport*        beacon_transport()  noexcept;
+    const BeaconTransport*  beacon_transport()  const noexcept;
+    MessageTransport*       message_transport() noexcept;
+    const MessageTransport* message_transport() const noexcept;
 
     // NeighbourTable owned by this World. BeaconSystem populates it from
     // received StateVector beacons; FlockingSystem and TaskAllocSystem
@@ -198,7 +216,9 @@ private:
     EntityRegistry                       registry_;
     SystemScheduler                      scheduler_;
     SwarmContext                         context_{};
-    std::unique_ptr<TransportLayer>      transport_;
+    std::unique_ptr<TransportLayer>      transport_;          // unified (or null)
+    std::unique_ptr<BeaconTransport>     beacon_only_;        // split (or null)
+    std::unique_ptr<MessageTransport>    message_only_;       // split (or null)
     NeighbourTable                       neighbour_table_;
     std::atomic<std::uint64_t>           fault_count_{0};
     std::uint64_t                        rotation_count_ = 0;

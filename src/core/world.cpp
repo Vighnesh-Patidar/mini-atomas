@@ -37,6 +37,17 @@ World::World(WorldConfig config, std::unique_ptr<TransportLayer> transport) noex
     context_.swarm_id = config_.swarm_id;
 }
 
+World::World(WorldConfig config,
+             std::unique_ptr<BeaconTransport>  beacon_transport,
+             std::unique_ptr<MessageTransport> message_transport) noexcept
+    : config_(config)
+    , registry_(config.registration_policy)
+    , scheduler_(config.scheduler_mode, config.thread_pool_size)
+    , beacon_only_(std::move(beacon_transport))
+    , message_only_(std::move(message_transport)) {
+    context_.swarm_id = config_.swarm_id;
+}
+
 World::~World() = default;
 
 void World::init() {
@@ -150,6 +161,23 @@ const SystemScheduler& World::scheduler() const noexcept { return scheduler_; }
 
 TransportLayer*        World::transport()       noexcept { return transport_.get(); }
 const TransportLayer*  World::transport() const noexcept { return transport_.get(); }
+
+BeaconTransport* World::beacon_transport() noexcept {
+    return transport_ ? static_cast<BeaconTransport*>(transport_.get())
+                      : beacon_only_.get();
+}
+const BeaconTransport* World::beacon_transport() const noexcept {
+    return transport_ ? static_cast<const BeaconTransport*>(transport_.get())
+                      : beacon_only_.get();
+}
+MessageTransport* World::message_transport() noexcept {
+    return transport_ ? static_cast<MessageTransport*>(transport_.get())
+                      : message_only_.get();
+}
+const MessageTransport* World::message_transport() const noexcept {
+    return transport_ ? static_cast<const MessageTransport*>(transport_.get())
+                      : message_only_.get();
+}
 
 NeighbourTable&        World::neighbour_table()       noexcept { return neighbour_table_; }
 const NeighbourTable&  World::neighbour_table() const noexcept { return neighbour_table_; }

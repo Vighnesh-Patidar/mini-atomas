@@ -20,9 +20,12 @@ bool SimTransport::send_message(const Message& msg) {
     return true;
 }
 
-void SimTransport::poll(std::vector<StateVector>& beacons_out,
-                         std::vector<Message>&     messages_out) {
-    bus_->drain_inbox_(participant_id_, beacons_out, messages_out);
+void SimTransport::poll_beacons(std::vector<StateVector>& out) {
+    bus_->drain_inbox_beacons_(participant_id_, out);
+}
+
+void SimTransport::poll_messages(std::vector<Message>& out) {
+    bus_->drain_inbox_messages_(participant_id_, out);
 }
 
 bool SimTransport::is_healthy() const {
@@ -147,17 +150,17 @@ void SimBus::deliver_message_(std::size_t from_idx, const Message& msg) {
     }
 }
 
-void SimBus::drain_inbox_(std::size_t idx,
-                           std::vector<StateVector>& beacons_out,
-                           std::vector<Message>&     messages_out) {
-    if (idx >= participants_.size()) {
-        beacons_out.clear();
-        messages_out.clear();
-        return;
-    }
-    beacons_out  = std::move(participants_[idx].inbound_beacons);
-    messages_out = std::move(participants_[idx].inbound_messages);
+void SimBus::drain_inbox_beacons_(std::size_t idx,
+                                   std::vector<StateVector>& out) {
+    if (idx >= participants_.size()) { out.clear(); return; }
+    out = std::move(participants_[idx].inbound_beacons);
     participants_[idx].inbound_beacons.clear();
+}
+
+void SimBus::drain_inbox_messages_(std::size_t idx,
+                                    std::vector<Message>& out) {
+    if (idx >= participants_.size()) { out.clear(); return; }
+    out = std::move(participants_[idx].inbound_messages);
     participants_[idx].inbound_messages.clear();
 }
 
