@@ -77,6 +77,7 @@ public:
     float         time_since_last_switch_s() const noexcept { return time_since_last_switch_s_; }
 
 private:
+    World*          world_;
     NeighbourTable* neighbour_table_;
     Params          params_;
     float           time_since_last_switch_s_ = 0.0f;

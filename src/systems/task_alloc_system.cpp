@@ -10,11 +10,13 @@
 namespace mith {
 
 TaskAllocSystem::TaskAllocSystem(World& world) noexcept
-    : neighbour_table_(&world.neighbour_table())
+    : world_(&world)
+    , neighbour_table_(&world.neighbour_table())
     , params_(Params{}) {}
 
 TaskAllocSystem::TaskAllocSystem(World& world, Params params) noexcept
-    : neighbour_table_(&world.neighbour_table())
+    : world_(&world)
+    , neighbour_table_(&world.neighbour_table())
     , params_(params) {}
 
 SystemDescriptor TaskAllocSystem::describe() const {
@@ -83,9 +85,13 @@ void TaskAllocSystem::tick(EntityRegistry& registry,
 
     // 5. Switch role if a strictly better candidate exists, stability
     //    window has elapsed, and the candidate is not already our role.
+    //    During a partition-merge window the stability gate collapses
+    //    to 0 — let the merged swarm reconverge fast (§16 v0.3).
+    const float effective_stability_s =
+        (world_ && world_->is_merging()) ? 0.0f : params_.stability_window_s;
     if (candidate_exists
         && best_role != self_role.role
-        && time_since_last_switch_s_ >= params_.stability_window_s) {
+        && time_since_last_switch_s_ >= effective_stability_s) {
         self_role.role = best_role;
         time_since_last_switch_s_ = 0.0f;
         ++total_switches_;

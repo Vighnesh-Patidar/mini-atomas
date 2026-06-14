@@ -36,6 +36,9 @@ add_executable(mith_unit_tests
     unit/test_peer_key_registry.cpp
     unit/test_clock_sync_system.cpp
     unit/test_binary_trace_sink.cpp
+    unit/test_partition_merge_system.cpp
+    unit/test_serial_framing.cpp
+    integration/test_serial_transport_integration.cpp
 )
 
 target_link_libraries(mith_unit_tests PRIVATE mith::mith)

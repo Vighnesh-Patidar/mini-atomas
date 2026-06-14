@@ -36,12 +36,14 @@ add_library(mith STATIC
     src/comms/beacon_system.cpp
     src/comms/peer_key_registry.cpp
     src/comms/udp_wire.cpp
+    src/comms/serial_framing.cpp
     src/systems/flocking_system.cpp
     src/systems/kinematics_system.cpp
     src/systems/fault_monitor_system.cpp
     src/systems/task_alloc_system.cpp
     src/systems/discovery_system.cpp
     src/systems/clock_sync_system.cpp
+    src/systems/partition_merge_system.cpp
     src/sim/sim_clock.cpp
     src/sim/sim_bus.cpp
 )
@@ -58,6 +60,14 @@ if(MITH_ENABLE_UDP)
         src/comms/udp_multicast_transport.cpp
     )
     target_compile_definitions(mith PUBLIC MITH_UDP_ENABLED)
+endif()
+
+# --- Serial transport (§7.5) — gated by MITH_ENABLE_SERIAL ---
+if(MITH_ENABLE_SERIAL)
+    target_sources(mith PRIVATE
+        src/comms/serial_transport.cpp
+    )
+    target_compile_definitions(mith PUBLIC MITH_SERIAL_ENABLED)
 endif()
 
 if(MITH_ENABLE_AUTH)

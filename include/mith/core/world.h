@@ -210,6 +210,15 @@ public:
     void  set_clock_offset_s(float v) noexcept  { clock_offset_s_ = v; }
     float synced_time_s() const noexcept        { return context_.elapsed_time_s + clock_offset_s_; }
 
+    // Partition-merge window (v0.3, §16). PartitionMergeSystem sets a
+    // positive window in seconds when it detects a sudden peer-count
+    // jump (partition heal). Other systems consult is_merging() to
+    // suspend hysteresis and let the swarm reconverge fast. Window
+    // counts down inside tick() each frame.
+    bool  is_merging() const noexcept           { return merge_window_remaining_s_ > 0.0f; }
+    float merge_window_remaining_s() const noexcept { return merge_window_remaining_s_; }
+    void  set_merge_window_s(float s) noexcept  { merge_window_remaining_s_ = s; }
+
     // Rotate the robot's identity (§3.4). Generates a fresh UnitID and
     // (in signed mode) a fresh Ed25519 keypair, then writes an
     // IdentityCertificate signed by the PREVIOUS private key — neighbours
@@ -270,6 +279,7 @@ private:
     std::vector<MessageHandler>          message_handlers_;
     PeerKeyRegistry                      peer_keys_;
     float                                clock_offset_s_ = 0.0f;
+    float                                merge_window_remaining_s_ = 0.0f;
 #ifdef MITH_AUTH_ENABLED
     std::optional<IdentityKeyPair>       current_keypair_;
 #endif

@@ -113,6 +113,13 @@ void World::tick() {
     context_.elapsed_time_s += context_.delta_time_s;
     ++context_.tick_count;
 
+    // Decay the merge window. set_merge_window_s extends it; nothing
+    // refills it automatically.
+    if (merge_window_remaining_s_ > 0.0f) {
+        merge_window_remaining_s_ -= context_.delta_time_s;
+        if (merge_window_remaining_s_ < 0.0f) merge_window_remaining_s_ = 0.0f;
+    }
+
     scheduler_.tick(registry_, context_, context_.delta_time_s);
 
     // PERIODIC identity rotation (§3.4). Other policies are explicit only.
