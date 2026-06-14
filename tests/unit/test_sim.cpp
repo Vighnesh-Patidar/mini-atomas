@@ -125,6 +125,47 @@ TEST_CASE("SimBus::advance ticks every created World") {
     CHECK(bus.clock().tick_count() == 10u);
 }
 
+TEST_CASE("SimBus: indexed delivery agrees with linear scan (post-advance path)") {
+    // Pre-advance() the grid is empty → linear-scan path. Post-advance()
+    // the grid is populated → indexed path. Both paths must yield the
+    // same set of recipients for a given send_beacon.
+
+    using mith::VelocityComponent;
+
+    SimBus bus(SimBusConfig{ /*tick=*/20.0f, /*range=*/10.0f });
+    auto a = bus.create_world(SwarmID{1});
+    auto b = bus.create_world(SwarmID{1});   // close to a
+    auto c = bus.create_world(SwarmID{1});   // 50 m away — out of range
+    a->init();
+    b->init();
+    c->init();
+
+    a->registry().get<PositionComponent>(a->self_id()).x = 0.0f;
+    b->registry().get<PositionComponent>(b->self_id()).x = 5.0f;   // in range
+    c->registry().get<PositionComponent>(c->self_id()).x = 50.0f;  // out
+
+    // -------- Pre-advance: linear-scan path --------
+    StateVector sv;
+    sv.id = a->identity();
+    REQUIRE(a->transport()->send_beacon(sv));
+
+    std::vector<StateVector> beacons_b, beacons_c;
+    b->transport()->poll_beacons(beacons_b);
+    c->transport()->poll_beacons(beacons_c);
+    CHECK(beacons_b.size() == 1u);
+    CHECK(beacons_c.empty());
+
+    // -------- Post-advance: indexed path --------
+    bus.advance(1);     // rebuild_grid_ runs first
+    beacons_b.clear();
+    beacons_c.clear();
+    REQUIRE(a->transport()->send_beacon(sv));
+    b->transport()->poll_beacons(beacons_b);
+    c->transport()->poll_beacons(beacons_c);
+    CHECK(beacons_b.size() == 1u);    // same answer via the index
+    CHECK(beacons_c.empty());
+}
+
 TEST_CASE("beacon sent by one World is delivered to the other (in range)") {
     SimBus bus(SimBusConfig{ /*tick=*/20.0f, /*range=*/100.0f });
     auto a = bus.create_world(SwarmID{1});

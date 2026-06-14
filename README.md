@@ -127,6 +127,29 @@ Both visualisers require `matplotlib` (and `pillow` for `--save`); nothing else.
 ./build/examples/flocking_demo_3d/flocking_demo_3d > /tmp/demo3d.jsonl
 ```
 
+## Run the swarm benchmark
+
+The v1.0 §16 performance gate — 1000 worlds running BeaconSystem + FlockingSystem + KinematicsSystem under SimBus with the v0.3 spatial index (NeighbourTable + SimBus delivery both indexed):
+
+```sh
+scripts/run_swarm_benchmark.sh                     # N=1000, T=200, defaults
+scripts/run_swarm_benchmark.sh 500 100             # smaller / faster run
+```
+
+Drops a timestamped folder under `qa-report/swarm-benchmark/`:
+
+- `per-tick.csv` — `tick, wall_ms, mean_neighbours` (one row per tick).
+- `summary.log` — aggregate timings, per-system breakdown for world 0.
+- `summary.md`  — human-readable headline numbers.
+
+There's also a focused `spatial_index_benchmark` for the NeighbourTable lookup speedup alone:
+
+```sh
+./build/examples/spatial_index_benchmark/spatial_index_benchmark
+```
+
+CSV to stdout: linear-scan µs vs indexed µs per query, sweeping N from 64 to 1024.
+
 ## Install
 
 ```sh

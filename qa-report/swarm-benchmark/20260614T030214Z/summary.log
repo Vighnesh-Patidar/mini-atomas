@@ -1,0 +1,16 @@
+swarm_benchmark: N=500 T=100 box=100.0 comm_range=15.0 vision=15.0
+setup: 537.88 ms, RSS 7448 kB
+
+=== aggregate (N=500, T=100) ===
+  total tick wall:  696197.78 ms
+  per-tick min:     0.590 ms
+  per-tick median:  6499.385 ms
+  per-tick p95:     12125.357 ms
+  per-tick max:     13276.615 ms
+  RSS at end:       11844 kB
+  setup time:       537.88 ms
+
+=== per-system tick timings (world 0, last tick) ===
+  BeaconSystem          1.125 ms
+  FlockingSystem        0.003 ms
+  KinematicsSystem      0.000 ms

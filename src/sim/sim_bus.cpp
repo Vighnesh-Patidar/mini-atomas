@@ -2,6 +2,7 @@
 
 #include "mith/core/builtin_components.h"
 
+#include <cmath>
 #include <utility>
 
 namespace mith::sim {
@@ -80,7 +81,33 @@ std::unique_ptr<World> SimBus::create_world(SwarmID swarm_id) {
 }
 
 void SimBus::advance(std::size_t ticks) {
-    clock_.advance(ticks);
+    for (std::size_t i = 0; i < ticks; ++i) {
+        rebuild_grid_();    // positions are stale-by-one-tick within the step
+        clock_.advance(1);
+    }
+}
+
+SimBus::CellKey SimBus::cell_for_(float x, float y, float z) const noexcept {
+    if (grid_cell_size_m_ <= 0.0f) return CellKey{0, 0, 0};
+    const float inv = 1.0f / grid_cell_size_m_;
+    return CellKey{
+        static_cast<std::int32_t>(std::floor(x * inv)),
+        static_cast<std::int32_t>(std::floor(y * inv)),
+        static_cast<std::int32_t>(std::floor(z * inv)),
+    };
+}
+
+void SimBus::rebuild_grid_() {
+    // Cell size defaults to comm_range_m — one-cell-radius scan covers
+    // every possible recipient.
+    grid_cell_size_m_ = config_.comm_range_m;
+    grid_.clear();
+    if (grid_cell_size_m_ <= 0.0f) return;
+    for (std::size_t i = 0; i < participants_.size(); ++i) {
+        if (!participants_[i].pos_fn) continue;
+        const auto p = participants_[i].pos_fn();
+        grid_[cell_for_(p.x, p.y, p.z)].push_back(i);
+    }
 }
 
 SimClock&         SimBus::clock()       noexcept { return clock_; }
@@ -92,21 +119,49 @@ void SimBus::deliver_beacon_(std::size_t from_idx, const StateVector& sv) {
     if (from_idx >= participants_.size()) return;
     if (!participants_[from_idx].pos_fn) return;
 
-    const auto from_pos = participants_[from_idx].pos_fn();
+    const auto  from_pos = participants_[from_idx].pos_fn();
     const float range_sq = config_.comm_range_m * config_.comm_range_m;
 
-    for (std::size_t to = 0; to < participants_.size(); ++to) {
-        if (to == from_idx) continue;
-        if (!participants_[to].pos_fn) continue;
+    // Spatial-index path. Grid is populated by rebuild_grid_() at the
+    // top of each advance() tick. Fallback (linear scan) handles the
+    // "0 ticks elapsed yet" case + the disabled (cell_size_m == 0) case.
+    if (grid_cell_size_m_ > 0.0f && !grid_.empty()) {
+        const auto centre = cell_for_(from_pos.x, from_pos.y, from_pos.z);
+        // span = 1: comm_range_m is exactly cell_size, so any recipient
+        // lives in centre OR one of the 26 adjacent cells.
+        const int span = 1;
+        for (int dz = -span; dz <= span; ++dz) {
+            for (int dy = -span; dy <= span; ++dy) {
+                for (int dx = -span; dx <= span; ++dx) {
+                    CellKey key{centre[0] + dx, centre[1] + dy, centre[2] + dz};
+                    auto it = grid_.find(key);
+                    if (it == grid_.end()) continue;
+                    for (std::size_t to : it->second) {
+                        if (to == from_idx) continue;
+                        if (!participants_[to].pos_fn) continue;
+                        const auto to_pos = participants_[to].pos_fn();
+                        const float ex = to_pos.x - from_pos.x;
+                        const float ey = to_pos.y - from_pos.y;
+                        const float ez = to_pos.z - from_pos.z;
+                        if (ex*ex + ey*ey + ez*ez <= range_sq) {
+                            participants_[to].inbound_beacons.push_back(sv);
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        for (std::size_t to = 0; to < participants_.size(); ++to) {
+            if (to == from_idx) continue;
+            if (!participants_[to].pos_fn) continue;
 
-        const auto to_pos = participants_[to].pos_fn();
-        const float dx = to_pos.x - from_pos.x;
-        const float dy = to_pos.y - from_pos.y;
-        const float dz = to_pos.z - from_pos.z;
-        const float dist_sq = dx*dx + dy*dy + dz*dz;
-
-        if (dist_sq <= range_sq) {
-            participants_[to].inbound_beacons.push_back(sv);
+            const auto to_pos = participants_[to].pos_fn();
+            const float dx = to_pos.x - from_pos.x;
+            const float dy = to_pos.y - from_pos.y;
+            const float dz = to_pos.z - from_pos.z;
+            if (dx*dx + dy*dy + dz*dz <= range_sq) {
+                participants_[to].inbound_beacons.push_back(sv);
+            }
         }
     }
 
@@ -127,15 +182,40 @@ void SimBus::deliver_message_(std::size_t from_idx, const Message& msg) {
         const auto from_pos = participants_[from_idx].pos_fn();
         const float range_sq = config_.comm_range_m * config_.comm_range_m;
 
-        for (std::size_t to = 0; to < participants_.size(); ++to) {
-            if (to == from_idx) continue;
-            if (!participants_[to].pos_fn) continue;
-            const auto to_pos = participants_[to].pos_fn();
-            const float dx = to_pos.x - from_pos.x;
-            const float dy = to_pos.y - from_pos.y;
-            const float dz = to_pos.z - from_pos.z;
-            if (dx*dx + dy*dy + dz*dz <= range_sq) {
-                participants_[to].inbound_messages.push_back(msg);
+        if (grid_cell_size_m_ > 0.0f && !grid_.empty()) {
+            const auto centre = cell_for_(from_pos.x, from_pos.y, from_pos.z);
+            const int span = 1;
+            for (int dz = -span; dz <= span; ++dz) {
+                for (int dy = -span; dy <= span; ++dy) {
+                    for (int dx = -span; dx <= span; ++dx) {
+                        CellKey key{centre[0] + dx, centre[1] + dy, centre[2] + dz};
+                        auto it = grid_.find(key);
+                        if (it == grid_.end()) continue;
+                        for (std::size_t to : it->second) {
+                            if (to == from_idx) continue;
+                            if (!participants_[to].pos_fn) continue;
+                            const auto to_pos = participants_[to].pos_fn();
+                            const float ex = to_pos.x - from_pos.x;
+                            const float ey = to_pos.y - from_pos.y;
+                            const float ez = to_pos.z - from_pos.z;
+                            if (ex*ex + ey*ey + ez*ez <= range_sq) {
+                                participants_[to].inbound_messages.push_back(msg);
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            for (std::size_t to = 0; to < participants_.size(); ++to) {
+                if (to == from_idx) continue;
+                if (!participants_[to].pos_fn) continue;
+                const auto to_pos = participants_[to].pos_fn();
+                const float dx = to_pos.x - from_pos.x;
+                const float dy = to_pos.y - from_pos.y;
+                const float dz = to_pos.z - from_pos.z;
+                if (dx*dx + dy*dy + dz*dz <= range_sq) {
+                    participants_[to].inbound_messages.push_back(msg);
+                }
             }
         }
     } else {

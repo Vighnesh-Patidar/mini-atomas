@@ -30,9 +30,12 @@
 #include "mith/identity/hierarchical_id.h"
 #include "mith/sim/sim_clock.h"
 
+#include <array>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
+#include <unordered_map>
 #include <vector>
 
 namespace mith::sim {
@@ -98,9 +101,30 @@ private:
         std::vector<Message>      inbound_messages;
     };
 
+    // Spatial-index plumbing. Rebuilt at the start of every advance()
+    // tick: each participant's position is bucketed into a 3D hash grid
+    // keyed by integer cell coordinates. Beacon delivery and broadcast
+    // message delivery query only the cells overlapping the comm range
+    // — turns O(N²) per-tick into O(N · k_avg) where k_avg ≈ neighbours
+    // visible to one robot. v0.3 spatial-index payoff at the SimBus
+    // layer (§16 v1.0 1000-entity benchmark).
+    using CellKey = std::array<std::int32_t, 3>;
+    struct CellKeyHash {
+        std::size_t operator()(const CellKey& k) const noexcept {
+            std::size_t h = static_cast<std::size_t>(static_cast<std::uint32_t>(k[0]));
+            h ^= static_cast<std::size_t>(static_cast<std::uint32_t>(k[1])) + 0x9e3779b9u + (h << 6) + (h >> 2);
+            h ^= static_cast<std::size_t>(static_cast<std::uint32_t>(k[2])) + 0x9e3779b9u + (h << 6) + (h >> 2);
+            return h;
+        }
+    };
+    void    rebuild_grid_();   // called at the top of advance()
+    CellKey cell_for_(float x, float y, float z) const noexcept;
+
     SimBusConfig              config_;
     SimClock                  clock_;
     std::vector<Participant>  participants_;
+    std::unordered_map<CellKey, std::vector<std::size_t>, CellKeyHash> grid_;
+    float                     grid_cell_size_m_ = 0.0f;
 };
 
 // Concrete TransportLayer for sim. Constructed only by SimBus —
