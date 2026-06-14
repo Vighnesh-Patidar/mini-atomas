@@ -30,6 +30,7 @@ add_library(mith STATIC
     src/core/scheduler.cpp
     src/core/json_writer.cpp
     src/core/trace_sink.cpp
+    src/core/binary_trace_sink.cpp
     src/core/world.cpp
     src/comms/neighbour_table.cpp
     src/comms/beacon_system.cpp
@@ -40,6 +41,7 @@ add_library(mith STATIC
     src/systems/fault_monitor_system.cpp
     src/systems/task_alloc_system.cpp
     src/systems/discovery_system.cpp
+    src/systems/clock_sync_system.cpp
     src/sim/sim_clock.cpp
     src/sim/sim_bus.cpp
 )

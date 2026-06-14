@@ -71,6 +71,7 @@ void BeaconSystem::tick(EntityRegistry& registry,
     sv.role      = registry.get<RoleComponent>(self);
     sv.state     = registry.get<BehaviourStateComponent>(self);
     sv.tick      = static_cast<std::uint32_t>(ctx.tick_count);
+    sv.sync_time_s = world_->synced_time_s();
 
     // 2. Send beacon if the beacon period has elapsed and the beacon
     //    channel exists + supports it. In signed mode, sign over the

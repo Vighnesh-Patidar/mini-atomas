@@ -202,6 +202,14 @@ public:
     PeerKeyRegistry&       peer_keys()       noexcept { return peer_keys_; }
     const PeerKeyRegistry& peer_keys() const noexcept { return peer_keys_; }
 
+    // Clock-sync state (v0.3, §16). ClockSyncSystem nudges
+    // clock_offset_s_ toward the swarm consensus by averaging observed
+    // peer sync_time deltas; BeaconSystem reads synced_time_s() at
+    // beacon emit to stamp the outgoing StateVector.
+    float clock_offset_s() const noexcept       { return clock_offset_s_; }
+    void  set_clock_offset_s(float v) noexcept  { clock_offset_s_ = v; }
+    float synced_time_s() const noexcept        { return context_.elapsed_time_s + clock_offset_s_; }
+
     // Rotate the robot's identity (§3.4). Generates a fresh UnitID and
     // (in signed mode) a fresh Ed25519 keypair, then writes an
     // IdentityCertificate signed by the PREVIOUS private key — neighbours
@@ -261,6 +269,7 @@ private:
     std::optional<IdentityCertificate>   last_cert_;
     std::vector<MessageHandler>          message_handlers_;
     PeerKeyRegistry                      peer_keys_;
+    float                                clock_offset_s_ = 0.0f;
 #ifdef MITH_AUTH_ENABLED
     std::optional<IdentityKeyPair>       current_keypair_;
 #endif

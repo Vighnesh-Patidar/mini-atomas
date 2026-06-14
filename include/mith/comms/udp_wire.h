@@ -23,11 +23,12 @@
 //   4     role          LE
 //   4     state         LE
 //   4     tick          LE
+//   4     sync_time_s   float LE (sender's consensus time at emit)
 //   32    sender_pubkey raw bytes (zero in unsigned mode)
 //   64    signature     raw bytes (zero in unsigned mode)
-//   = 151 bytes
+//   = 155 bytes
 //
-// Bytes 0..86 of the payload (everything up to and including
+// Bytes 0..90 of the payload (everything up to and including
 // sender_pubkey) are the SIGNED bytes — what sender Ed25519-signs and
 // receiver verifies. See serialise_beacon_signed_payload() below.
 //
@@ -56,8 +57,8 @@ inline constexpr std::uint8_t TAG_BEACON  = 0x01;
 inline constexpr std::uint8_t TAG_MESSAGE = 0x02;
 
 inline constexpr std::size_t  FRAME_HEADER_BYTES        = 5;     // tag + length
-inline constexpr std::size_t  BEACON_PAYLOAD_BYTES       = 151;
-inline constexpr std::size_t  BEACON_SIGNED_PREFIX_BYTES = 87;    // bytes Ed25519-signs
+inline constexpr std::size_t  BEACON_PAYLOAD_BYTES       = 155;
+inline constexpr std::size_t  BEACON_SIGNED_PREFIX_BYTES = 91;    // bytes Ed25519-signs
 inline constexpr std::size_t  MESSAGE_PAYLOAD_BYTES      = 176;
 inline constexpr std::size_t  MAX_FRAME_BYTES =
     FRAME_HEADER_BYTES + MESSAGE_PAYLOAD_BYTES;                   // <= MTU

@@ -73,8 +73,8 @@ bool msg_equals(const Message& a, const Message& b) {
 
 TEST_CASE("udp_wire: frame sizes match the documented schema") {
     CHECK(uw::FRAME_HEADER_BYTES        == 5u);
-    CHECK(uw::BEACON_PAYLOAD_BYTES       == 151u);
-    CHECK(uw::BEACON_SIGNED_PREFIX_BYTES == 87u);
+    CHECK(uw::BEACON_PAYLOAD_BYTES       == 155u);
+    CHECK(uw::BEACON_SIGNED_PREFIX_BYTES == 91u);
     CHECK(uw::MESSAGE_PAYLOAD_BYTES      == 176u);
     CHECK(uw::MAX_FRAME_BYTES      == uw::FRAME_HEADER_BYTES + uw::MESSAGE_PAYLOAD_BYTES);
 }

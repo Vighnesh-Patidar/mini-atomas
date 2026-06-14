@@ -34,6 +34,8 @@ add_executable(mith_unit_tests
     unit/test_udp_wire.cpp
     unit/test_discovery_system.cpp
     unit/test_peer_key_registry.cpp
+    unit/test_clock_sync_system.cpp
+    unit/test_binary_trace_sink.cpp
 )
 
 target_link_libraries(mith_unit_tests PRIVATE mith::mith)

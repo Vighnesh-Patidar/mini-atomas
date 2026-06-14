@@ -49,6 +49,7 @@ public:
         BehaviourStateComponent state;
         float                   last_seen_s = 0.0f;     // local observation time
         float                   rssi        = UNKNOWN_RSSI;
+        float                   sync_time_s = 0.0f;     // peer's consensus-time stamp at emit
     };
 
     NeighbourTable() = default;

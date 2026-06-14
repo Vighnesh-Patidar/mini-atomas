@@ -18,6 +18,7 @@ void NeighbourTable::upsert(const StateVector& sv,
         e.state        = sv.state;
         e.last_seen_s  = current_time_s;
         e.rssi         = rssi;
+        e.sync_time_s  = sv.sync_time_s;
         entries_.push_back(e);
     } else {
         it->position     = sv.position;
@@ -27,6 +28,7 @@ void NeighbourTable::upsert(const StateVector& sv,
         it->state        = sv.state;
         it->last_seen_s  = current_time_s;
         it->rssi         = rssi;
+        it->sync_time_s  = sv.sync_time_s;
     }
     ++total_observations_;
 }

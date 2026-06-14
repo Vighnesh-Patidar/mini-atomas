@@ -73,6 +73,7 @@ std::size_t serialise_beacon_signed_payload(const StateVector& sv,
     put_u32(p, sv.role.role);               p += 4;
     put_u32(p, sv.state.state);             p += 4;
     put_u32(p, sv.tick);                    p += 4;
+    put_f32(p, sv.sync_time_s);             p += 4;
     std::memcpy(p, sv.sender_pubkey.public_key.data(), 32);
     return BEACON_SIGNED_PREFIX_BYTES;
 }
@@ -133,6 +134,7 @@ std::optional<StateVector> decode_beacon(const std::uint8_t* in,
     sv.role.role     = get_u32(p);          p += 4;
     sv.state.state   = get_u32(p);          p += 4;
     sv.tick          = get_u32(p);          p += 4;
+    sv.sync_time_s   = get_f32(p);          p += 4;
     std::memcpy(sv.sender_pubkey.public_key.data(), p, 32);     p += 32;
     std::memcpy(sv.signature.data(), p, IdentityKey::SIGNATURE_LEN);
     return sv;

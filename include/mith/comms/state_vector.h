@@ -36,6 +36,12 @@ struct StateVector {
     RoleComponent           role;
     BehaviourStateComponent state;
     std::uint32_t           tick = 0;
+
+    // Sender's notion of consensus time at emit (= local elapsed_time +
+    // ClockSyncSystem's offset). Receivers feed this to their own
+    // ClockSyncSystem to converge toward a swarm-wide clock.
+    float                   sync_time_s = 0.0f;
+
     IdentityKey             sender_pubkey{};
     std::array<std::uint8_t, IdentityKey::SIGNATURE_LEN> signature{};
 };
