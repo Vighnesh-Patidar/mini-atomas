@@ -13,7 +13,8 @@
 namespace mith {
 
 BeaconSystem::BeaconSystem(World& world) noexcept
-    : neighbour_table_(&world.neighbour_table())
+    : world_(&world)
+    , neighbour_table_(&world.neighbour_table())
     , beacon_transport_(world.beacon_transport())
     , message_transport_(world.message_transport())
     , beacon_period_s_(world.config().beacon_rate_hz > 0.0f
@@ -87,13 +88,21 @@ void BeaconSystem::tick(EntityRegistry& registry,
     }
 
     // 4. Drain inbound messages (message channel — may be a different
-    //    transport entirely).
+    //    transport entirely). Consult World::message_handlers() first —
+    //    if any handler claims the message, it's NOT pushed to the
+    //    mission-facing CommBufferComponent. DiscoverySystem uses this
+    //    to intercept DISCOVERY_HELLO / DISCOVERY_WELCOME.
     if (message_transport_ && message_transport_->supports_messages()) {
         std::vector<Message> messages;
         message_transport_->poll_messages(messages);
-        auto& cb = registry.get<CommBufferComponent>(self);
+        auto& cb       = registry.get<CommBufferComponent>(self);
+        const auto& hs = world_->message_handlers();
         for (auto& m : messages) {
-            cb.queue.push(std::move(m));
+            bool claimed = false;
+            for (const auto& h : hs) {
+                if (h && h(m)) { claimed = true; break; }
+            }
+            if (!claimed) cb.queue.push(std::move(m));
         }
     }
 }

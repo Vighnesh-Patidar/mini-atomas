@@ -33,6 +33,7 @@ public:
               float delta_time) override;
 
 private:
+    World*            world_;             // for World::message_handlers()
     NeighbourTable*   neighbour_table_;
     BeaconTransport*  beacon_transport_;
     MessageTransport* message_transport_;

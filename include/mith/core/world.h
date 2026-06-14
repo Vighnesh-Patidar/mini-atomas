@@ -24,6 +24,7 @@
 //   - create_entity() (degenerate at N=1; will be a stub returning
 //     self_id() when added)
 
+#include "mith/comms/message.h"
 #include "mith/comms/neighbour_table.h"
 #include "mith/core/builtin_components.h"
 #include "mith/core/registry.h"
@@ -39,8 +40,10 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
+#include <vector>
 
 namespace mith {
 
@@ -175,6 +178,22 @@ public:
     // scheduler) events. Pass nullptr to clear.
     void set_trace_sink(TraceSink* sink) noexcept;
 
+    // Message router (v0.3, §16). Systems can register a predicate
+    // handler — BeaconSystem consults the handler list when draining
+    // the inbound message channel; the first handler that returns true
+    // claims the message and it is NOT pushed to CommBufferComponent.
+    // Anything no handler claims falls through to CommBuffer as before.
+    //
+    // Used by DiscoverySystem to intercept DISCOVERY_HELLO and
+    // DISCOVERY_WELCOME so mission code's message queue stays clean.
+    // The handler list shares World's lifetime — System dtors run
+    // before the handler list is destroyed (scheduler_ declared
+    // earlier than message_handlers_), so captured `this` pointers are
+    // safe.
+    using MessageHandler = std::function<bool(const Message&)>;
+    void register_message_handler(MessageHandler h);
+    const std::vector<MessageHandler>& message_handlers() const noexcept;
+
     // Rotate the robot's identity (§3.4). Generates a fresh UnitID and
     // (in signed mode) a fresh Ed25519 keypair, then writes an
     // IdentityCertificate signed by the PREVIOUS private key — neighbours
@@ -224,6 +243,7 @@ private:
     std::uint64_t                        rotation_count_ = 0;
     float                                last_rotation_time_s_ = 0.0f;
     std::optional<IdentityCertificate>   last_cert_;
+    std::vector<MessageHandler>          message_handlers_;
 #ifdef MITH_AUTH_ENABLED
     std::optional<IdentityKeyPair>       current_keypair_;
 #endif

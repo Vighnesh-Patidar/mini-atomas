@@ -240,6 +240,14 @@ std::optional<IdentityCertificate> World::last_identity_certificate() const noex
     return last_cert_;
 }
 
+void World::register_message_handler(MessageHandler h) {
+    message_handlers_.push_back(std::move(h));
+}
+
+const std::vector<World::MessageHandler>& World::message_handlers() const noexcept {
+    return message_handlers_;
+}
+
 std::uint64_t World::identity_rotation_count() const noexcept {
     return rotation_count_;
 }

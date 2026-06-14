@@ -28,10 +28,12 @@ using MessageTypeID = std::uint32_t;
 
 namespace messages {
 
-inline constexpr MessageTypeID TASK_BID      = 1;
-inline constexpr MessageTypeID TASK_ASSIGN   = 2;
-inline constexpr MessageTypeID FAULT_ALERT   = 3;
-inline constexpr MessageTypeID FORMATION_CMD = 4;
+inline constexpr MessageTypeID TASK_BID          = 1;
+inline constexpr MessageTypeID TASK_ASSIGN       = 2;
+inline constexpr MessageTypeID FAULT_ALERT       = 3;
+inline constexpr MessageTypeID FORMATION_CMD     = 4;
+inline constexpr MessageTypeID DISCOVERY_HELLO   = 5;   // "anyone there? please respond"
+inline constexpr MessageTypeID DISCOVERY_WELCOME = 6;   // unicast reply to a HELLO
 
 // User-defined message types start here.
 inline constexpr MessageTypeID CUSTOM = 0x1000;
