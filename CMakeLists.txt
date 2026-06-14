@@ -33,6 +33,7 @@ add_library(mith STATIC
     src/core/world.cpp
     src/comms/neighbour_table.cpp
     src/comms/beacon_system.cpp
+    src/comms/udp_wire.cpp
     src/systems/flocking_system.cpp
     src/systems/kinematics_system.cpp
     src/systems/fault_monitor_system.cpp
@@ -47,6 +48,14 @@ target_link_libraries(mith PUBLIC Threads::Threads)
 add_library(mith::mith ALIAS mith)
 
 # --- Cryptographic identity (§3.3) — gated by MITH_ENABLE_AUTH ---
+# --- UDP multicast transport (§7.5) — gated by MITH_ENABLE_UDP ---
+if(MITH_ENABLE_UDP)
+    target_sources(mith PRIVATE
+        src/comms/udp_multicast_transport.cpp
+    )
+    target_compile_definitions(mith PUBLIC MITH_UDP_ENABLED)
+endif()
+
 if(MITH_ENABLE_AUTH)
     target_sources(mith PRIVATE
         third_party/tweetnacl/tweetnacl.c
