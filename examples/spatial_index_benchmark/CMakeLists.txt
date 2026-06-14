@@ -1,0 +1,3 @@
+add_executable(spatial_index_benchmark main.cpp)
+target_link_libraries(spatial_index_benchmark PRIVATE mith::mith)
+target_compile_features(spatial_index_benchmark PRIVATE cxx_std_17)

@@ -31,6 +31,14 @@ public:
         float alignment_weight     = 1.0f;
         float cohesion_weight      = 1.0f;
         float max_speed_mps        = 5.0f;
+
+        // Radius beyond which neighbours don't influence the flocking
+        // rules. Used by the NeighbourTable spatial index (§16 v0.3) to
+        // bound iteration — pre-v0.3 behaviour was "every visible
+        // neighbour"; setting a finite radius is what makes
+        // FlockingSystem scale beyond N². 0 disables the bound
+        // (linear scan over all neighbours).
+        float vision_radius_m      = 30.0f;
     };
 
     explicit FlockingSystem(World& world) noexcept;

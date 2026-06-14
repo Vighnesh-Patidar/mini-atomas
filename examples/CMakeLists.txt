@@ -1,2 +1,3 @@
 add_subdirectory(flocking_demo)
 add_subdirectory(flocking_demo_3d)
+add_subdirectory(spatial_index_benchmark)

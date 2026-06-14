@@ -26,9 +26,12 @@
 #include "mith/core/builtin_components.h"
 #include "mith/identity/hierarchical_id.h"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <limits>
+#include <unordered_map>
 #include <vector>
 
 namespace mith {
@@ -82,6 +85,38 @@ public:
     std::vector<Entry>::const_iterator begin() const noexcept;
     std::vector<Entry>::const_iterator end()   const noexcept;
 
+    // -------- Spatial index (§16 v0.3) -------------------------------
+    //
+    // A hash-grid keyed by integer cell coordinates of each entry's
+    // position. for_each_within(centre, radius, cb) visits only the
+    // entries in cells overlapping the radius — O(k) where k is the
+    // count of those entries, not O(n). Bring 1000-entity FlockingSystem
+    // ticks from O(N²) to O(N·k_avg).
+    //
+    // Grid stays in sync with the entry vector on every upsert(),
+    // age_out(), and clear(). Set cell_size_m to 0 to disable the
+    // index — for_each_within then linear-scans (same shape as the
+    // pre-v0.3 path) but the api remains.
+
+    using Visitor = std::function<void(const Entry&)>;
+
+    // Visit every entry whose centre is within `radius_m` of `centre`.
+    // Order of visitation is the iteration order of the matching cells
+    // — not stable across upsert/age_out cycles. Skip entries with
+    // dist_sq > radius_sq internally (cells overlap conservatively).
+    void for_each_within(const PositionComponent& centre,
+                          float radius_m,
+                          const Visitor& cb) const;
+
+    // Configure the cell edge length in metres. Re-bins all current
+    // entries. 0 disables the index.
+    void  set_cell_size_m(float size_m);
+    float cell_size_m() const noexcept { return cell_size_m_; }
+
+    // Observability — number of cells currently occupied. 0 when the
+    // grid is empty OR cell_size_m_ == 0.
+    std::size_t occupied_cells() const noexcept;
+
     // Observability counters — monotonic from construction. Total
     // upsert() calls and total entries removed by age_out().
     std::uint64_t total_observations() const noexcept;
@@ -91,9 +126,28 @@ private:
     std::vector<Entry>::iterator       find_(const HierarchicalID& hid);
     std::vector<Entry>::const_iterator find_(const HierarchicalID& hid) const;
 
+    // Hash-grid plumbing.
+    using CellKey = std::array<std::int32_t, 3>;
+    struct CellKeyHash {
+        std::size_t operator()(const CellKey& k) const noexcept {
+            // Mix three i32s — Boost-style hash_combine (xor + shift) is
+            // good enough; we're keying integer cells, not adversarial
+            // input.
+            std::size_t h = static_cast<std::size_t>(static_cast<std::uint32_t>(k[0]));
+            h ^= static_cast<std::size_t>(static_cast<std::uint32_t>(k[1])) + 0x9e3779b9u + (h << 6) + (h >> 2);
+            h ^= static_cast<std::size_t>(static_cast<std::uint32_t>(k[2])) + 0x9e3779b9u + (h << 6) + (h >> 2);
+            return h;
+        }
+    };
+
+    CellKey cell_for_(const PositionComponent& p) const noexcept;
+    void    rebuild_grid_();   // O(n) — called after age_out / set_cell_size_m
+
     std::vector<Entry> entries_;
     std::uint64_t      total_observations_ = 0;
     std::uint64_t      total_evictions_    = 0;
+    float              cell_size_m_        = 5.0f;
+    std::unordered_map<CellKey, std::vector<std::size_t>, CellKeyHash> grid_;
 };
 
 } // namespace mith

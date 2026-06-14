@@ -45,14 +45,14 @@ void FlockingSystem::tick(EntityRegistry& registry,
 
     const float sep_r_sq = params_.separation_radius_m * params_.separation_radius_m;
 
-    for (const auto& nb : *nt_) {
+    // Inner loop body — reused by both the spatial-index path and the
+    // unbounded full-iteration fallback.
+    auto consider = [&](const NeighbourTable::Entry& nb) {
         const float dx = self_pos.x - nb.position.x;
         const float dy = self_pos.y - nb.position.y;
         const float dz = self_pos.z - nb.position.z;
         const float dist_sq = dx*dx + dy*dy + dz*dz;
 
-        // Separation: only within separation_radius. Weight by 1/dist so
-        // close neighbours push harder than far ones.
         if (dist_sq > 0.0f && dist_sq < sep_r_sq) {
             const float dist = std::sqrt(dist_sq);
             sep_x += dx / dist;
@@ -60,7 +60,6 @@ void FlockingSystem::tick(EntityRegistry& registry,
             sep_z += dz / dist;
         }
 
-        // Alignment + cohesion: averaged over all neighbours.
         align_x += nb.velocity.vx;
         align_y += nb.velocity.vy;
         align_z += nb.velocity.vz;
@@ -68,9 +67,21 @@ void FlockingSystem::tick(EntityRegistry& registry,
         coh_y   += nb.position.y;
         coh_z   += nb.position.z;
         ++n;
+    };
+
+    if (params_.vision_radius_m > 0.0f) {
+        // Spatial-index path. for_each_within iterates only the cells
+        // overlapping the radius — O(k) where k = neighbours in those
+        // cells, not O(N).
+        nt_->for_each_within(self_pos, params_.vision_radius_m, consider);
+    } else {
+        // Disabled — fall back to full scan (pre-v0.3 behaviour).
+        for (const auto& nb : *nt_) consider(nb);
     }
 
-    // n is guaranteed > 0 because we returned early on empty().
+    // With the spatial-index path, the table can be non-empty but
+    // contribute zero peers in range — guard the divide.
+    if (n == 0) return;
     const float inv_n = 1.0f / static_cast<float>(n);
     align_x = align_x * inv_n - self_vel.vx;
     align_y = align_y * inv_n - self_vel.vy;
