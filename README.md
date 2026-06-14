@@ -8,44 +8,61 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the authoritative design.
 
 <table>
 <tr>
-<td width="55%">
+<td align="center" width="50%">
 
-10 simulated robots starting in a 5×2 grid and flocking through `BeaconSystem` + `FlockingSystem` + `KinematicsSystem`. From `t=0` to `t=200` the mean radius around the centroid contracts ~70% (6.87 m → 2.10 m) — cohesion + alignment pull the flock together; separation keeps them from overlapping.
+<img src="docs/assets/flocking_demo.gif" alt="2D flocking — 10 robots, 200 ticks @ 20 Hz" width="100%" />
 
-Frames captured live; rendered by `tools/visualiser/visualise.py`. Reproduce with [the demo command](#run-the-flocking-demo). Full sequence at `docs/assets/flocking_demo.png`.
+**2D — 10 robots, 5×2 grid → tight cluster.**
+The mean radius around the centroid contracts ~70% (6.87 m → 2.10 m) across 10 s of sim time. Reynolds rules pulling the flock together via cohesion + alignment; separation keeps them from overlapping.
 
 </td>
-<td width="45%" align="center">
+<td align="center" width="50%">
 
-<img src="docs/assets/flocking_demo.gif" alt="flocking — 10 robots, 200 ticks @ 20 Hz" width="100%" />
+<img src="docs/assets/flocking_demo_3d.gif" alt="3D flocking — 20 robots, 400 ticks @ 20 Hz" width="100%" />
+
+**3D — 20 robots, scattered cube → spherical cluster.**
+Same `BeaconSystem` + `FlockingSystem` + `KinematicsSystem`, full 3-axis motion. 20 robots seeded inside a 16 m cube collapse into a coherent sphere of motion in 20 s. Reproduce with `flocking_demo_3d | visualise3d.py`.
 
 </td>
 </tr>
 </table>
 
+Frames captured live; rendered by `tools/visualiser/visualise.py` (2D) and `tools/visualiser/visualise3d.py` (3D). Reproduce with [the demo commands](#run-the-flocking-demo). Full 2D snapshot grid at `docs/assets/flocking_demo.png`.
+
 ---
 
-## Status — v0.1 feature complete
+## Status — v0.2 feature complete
 
 | Area | What ships |
 |---|---|
-| Identity | `UUID` (RFC 4122 v4), `HierarchicalID`, `IdentityKey` + `IdentityVerifier` stubs (Ed25519 deferred to v0.2), `IdentityRotationPolicy` + `World::rotate_identity()` stub |
-| ECS | `EntityRegistry` (registration policies, view, snapshot, ComponentOrigin tag, sink-wired audit), all 10 §4.4 built-in components, `BoundedQueue<T,N,Policy>` |
+| Identity | `UUID` (RFC 4122 v4), `HierarchicalID`, **Ed25519** sign/verify via vendored TweetNaCl, **ChaCha20 CSPRNG** (RFC 8439, per-thread, replaces `std::random_device`-per-call), **identity rotation** (`PERIODIC` + `EVENT_DRIVEN` + `IdentityCertificate` continuity chain signed by previous key) |
+| ECS | `EntityRegistry` (registration policies, view, snapshot, `ComponentOrigin` tag, sink-wired audit), all 10 §4.4 built-in components, `BoundedQueue<T,N,Policy>` |
 | Scheduling | `SystemDescriptor` two-axis hazards, `SystemScheduler` with both `Sequential` and `Parallel` modes (thread pool + hazard DAG), `last_tick_timings()` |
-| Comms | `StateVector`, `Message`, `NeighbourTable`, `TransportLayer`, `BeaconSystem`, `BROADCAST_ID` semantics |
+| Comms | `StateVector`, `Message`, `NeighbourTable`, **channel-aware transport** (`BeaconTransport` + `MessageTransport` interfaces, unified `TransportLayer` for combined impls), `BeaconSystem`, `BROADCAST_ID` semantics |
+| Transports | `SimTransport` (in-process), **`UDPMulticastTransport`** (IPv4 multicast over POSIX sockets, tagged wire frames via `udp_wire`) |
 | Motion | `FlockingSystem` (Reynolds), `KinematicsSystem` |
+| Fault handling | **`FaultMonitorSystem`** (§13.1, §13.2) — fault counter delta → health decrement → degraded mask install with snapshot/restore + hysteresis |
+| Task allocation | **`TaskAllocSystem`** (§5.3) — threshold-based, deterministic, pre-partition-merge |
 | Sim | `SimClock`, `SimBus` (range-limited delivery), `SimTransport` |
 | Observability | Hand-rolled JSON writer, `TraceSink` interface + `JsonTraceSink` + `NullTraceSink`, `World::dump_state()`, `component_registered` / `tick_completed` audit events |
-| Runtime | `World` (config, init, tick, run, identity, transport, neighbour table, scheduler / registry forwarders, sink wiring) |
-| Demo | 10-robot flocking demo + matplotlib visualiser |
-| Build | CMake STATIC library, install target with `find_package(mith-atomas)` config, doctest-vendored test suite |
+| Runtime | `World` (config, init, tick, run, identity, transports — unified or per-channel, neighbour table, scheduler / registry forwarders, sink wiring) |
+| Demo | 10-robot 2D flocking demo + matplotlib visualiser |
+| Build | CMake STATIC library, install target with `find_package(mith-atomas)` config, doctest-vendored test suite, build matrix gated by `MITH_ENABLE_UDP` / `MITH_ENABLE_AUTH` |
 
-Test suite: **275 cases, 13,149 assertions, all passing.**
+Test suite — verified across the build matrix:
+
+| Config | Cases | Assertions |
+|---|---:|---:|
+| `UDP=OFF AUTH=OFF` | 295 | 13,219 |
+| `UDP=ON  AUTH=OFF` | 299 | 13,235 |
+| `UDP=ON  AUTH=ON ` | 329 | 13,342 |
+
+All green, including integration tests (`tests/integration/`) for SimBus-driven fault injection, the signed-mode rotation chain, the v0.2 full-stack lifecycle, and UDP multicast loopback.
 
 Pre-v0.1 design phase: **9/9 questions resolved** (see [ARCHITECTURE.md §16](ARCHITECTURE.md#16-roadmap)).
 
-v0.2 next — see the [roadmap](ARCHITECTURE.md#16-roadmap):
-discovery / bootstrap protocol, channel-aware transport, **cryptographic identity (Ed25519 + ChaCha20 CSPRNG)**, identity rotation impl, `FaultMonitorSystem` + active degraded mode, `UDPMulticastTransport`, `TaskAllocSystem`, fault-injection + spoofing-rejection integration tests.
+v0.3 next — see the [roadmap](ARCHITECTURE.md#16-roadmap):
+discovery / bootstrap protocol, clock sync, identity rotation partition-merge (epoch-leader or version-vector), serial transport, binary `TraceSink`, signed-mode beacons end-to-end, 3D motion stack hardening.
 
 ---
 
@@ -84,16 +101,27 @@ List every case:
 
 ## Run the flocking demo
 
+**2D — 10 robots:**
+
 ```sh
 ./build/examples/flocking_demo/flocking_demo | python3 tools/visualiser/visualise.py
 ```
 
-10 simulated robots running `BeaconSystem` + `FlockingSystem` + `KinematicsSystem` in a `SimBus`. 200 ticks at 20 Hz (10 s sim time). The C++ side emits one JSON object per tick to stdout; the Python script animates them as a 2D scatter. Requires `matplotlib` on the Python side; nothing else.
+200 ticks at 20 Hz (10 s sim time). Robots start in a 5×2 grid; emit one JSON object per tick describing each robot's `(x, y)`; the Python visualiser animates the scatter live.
 
-For headless capture (e.g., CI):
+**3D — 20 robots:**
 
 ```sh
-./build/examples/flocking_demo/flocking_demo > /tmp/demo.jsonl
+./build/examples/flocking_demo_3d/flocking_demo_3d | python3 tools/visualiser/visualise3d.py
+```
+
+400 ticks at 20 Hz (20 s). Scattered cube → coherent sphere. Same JSON-line protocol with `z` added to each entry. Pass `--save out.gif` to export an animated GIF instead of opening the matplotlib window.
+
+Both visualisers require `matplotlib` (and `pillow` for `--save`); nothing else. For headless capture:
+
+```sh
+./build/examples/flocking_demo/flocking_demo    > /tmp/demo.jsonl
+./build/examples/flocking_demo_3d/flocking_demo_3d > /tmp/demo3d.jsonl
 ```
 
 ## Install
@@ -116,9 +144,9 @@ target_link_libraries(my_robot PRIVATE mith::mith)
 | `MITH_BUILD_EXAMPLES` | `ON`  | Build the flocking demo |
 | `MITH_BUILD_TESTS`    | `ON`  | Build the test suite |
 | `MITH_BUILD_SIM`      | `ON`  | Build the simulation harness (reserved — currently always on) |
-| `MITH_ENABLE_UDP`     | `ON`  | Build UDP transport (lands v0.2) |
+| `MITH_ENABLE_UDP`     | `ON`  | Build `UDPMulticastTransport` (POSIX sockets, IPv4 multicast) |
 | `MITH_ENABLE_SERIAL`  | `OFF` | Build serial transport (lands v0.3) |
-| `MITH_ENABLE_AUTH`    | `OFF` | Build cryptographic identity / Ed25519 signed mode (lands v0.2) |
+| `MITH_ENABLE_AUTH`    | `OFF` | Build cryptographic identity — Ed25519 sign/verify, ChaCha20 CSPRNG, signed `IdentityCertificate` chain |
 
 ---
 
