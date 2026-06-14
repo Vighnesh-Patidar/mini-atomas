@@ -1,5 +1,7 @@
 # MithAtomas
 
+[![CI](https://github.com/Vighnesh-Patidar/mith-atomas/actions/workflows/ci.yml/badge.svg)](https://github.com/Vighnesh-Patidar/mith-atomas/actions/workflows/ci.yml)
+
 Swarm robotics orchestration runtime — C++17.
 
 > **Decentralised by default. Composable by design. Hardware-agnostic by necessity.**

@@ -1,0 +1,172 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-flight runs on the same ref when a new push lands.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Linux build matrix — the three salient cmake configurations the project
+  # ships. Each job builds Release and runs the full doctest binary.
+  # -------------------------------------------------------------------------
+  linux:
+    name: linux-${{ matrix.config }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [all-off, udp-auth, all-on]
+        include:
+          - config: all-off
+            cmake_flags: >-
+              -DMITH_ENABLE_UDP=OFF
+              -DMITH_ENABLE_AUTH=OFF
+              -DMITH_ENABLE_SERIAL=OFF
+          - config: udp-auth
+            cmake_flags: >-
+              -DMITH_ENABLE_UDP=ON
+              -DMITH_ENABLE_AUTH=ON
+              -DMITH_ENABLE_SERIAL=OFF
+          - config: all-on
+            cmake_flags: >-
+              -DMITH_ENABLE_UDP=ON
+              -DMITH_ENABLE_AUTH=ON
+              -DMITH_ENABLE_SERIAL=ON
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential ninja-build
+
+      - name: Configure
+        run: >
+          cmake -B build -S . -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          ${{ matrix.cmake_flags }}
+
+      - name: Build
+        run: cmake --build build -j
+
+      - name: Run unit + integration tests
+        run: ./build/tests/mith_unit_tests
+
+      - name: ctest (registered tests)
+        run: ctest --test-dir build --output-on-failure
+
+  # -------------------------------------------------------------------------
+  # Sanitizers — Debug build with -fsanitize=address,undefined under the
+  # full-options config (every feature gated on, so every sanitizer trap
+  # surface is exercised).
+  # -------------------------------------------------------------------------
+  sanitizers:
+    name: linux-asan-ubsan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential ninja-build
+
+      - name: Configure (Debug + asan + ubsan)
+        run: >
+          cmake -B build -S . -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DMITH_ENABLE_UDP=ON
+          -DMITH_ENABLE_AUTH=ON
+          -DMITH_ENABLE_SERIAL=ON
+          -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all"
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+
+      - name: Build
+        run: cmake --build build -j
+
+      - name: Test under sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1:print_stacktrace=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: ./build/tests/mith_unit_tests
+
+  # -------------------------------------------------------------------------
+  # Strict warnings — same as linux/all-on but with -Werror. Catches any new
+  # warning regression that the existing -Wall -Wextra -Wpedantic -Wshadow
+  # -Wconversion flags emit.
+  # -------------------------------------------------------------------------
+  warnings:
+    name: linux-warnings-as-errors
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential ninja-build
+      - name: Configure
+        run: >
+          cmake -B build -S . -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DMITH_ENABLE_UDP=ON
+          -DMITH_ENABLE_AUTH=ON
+          -DMITH_ENABLE_SERIAL=ON
+          -DCMAKE_CXX_FLAGS="-Werror"
+      - name: Build
+        run: cmake --build build -j
+      - name: Test
+        run: ./build/tests/mith_unit_tests
+
+  # -------------------------------------------------------------------------
+  # macOS — verify Apple Clang. SERIAL stays OFF on macOS for now; the
+  # termios path works in theory but isn't validated on Darwin yet (open
+  # item alongside the Pi 4 / physical-serial validation in §16 v0.3).
+  # -------------------------------------------------------------------------
+  macos:
+    name: macos-clang
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: >
+          cmake -B build -S .
+          -DCMAKE_BUILD_TYPE=Release
+          -DMITH_ENABLE_UDP=ON
+          -DMITH_ENABLE_AUTH=ON
+          -DMITH_ENABLE_SERIAL=OFF
+      - name: Build
+        run: cmake --build build -j $(sysctl -n hw.ncpu)
+      - name: Test
+        run: ./build/tests/mith_unit_tests
+
+  # -------------------------------------------------------------------------
+  # ARM (aarch64) — closes the §15 platform-tier claim. Uses GitHub's
+  # native ARM runners (free on public repos).
+  # -------------------------------------------------------------------------
+  arm:
+    name: linux-arm64
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential ninja-build
+      - name: Configure
+        run: >
+          cmake -B build -S . -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DMITH_ENABLE_UDP=ON
+          -DMITH_ENABLE_AUTH=ON
+          -DMITH_ENABLE_SERIAL=ON
+      - name: Build
+        run: cmake --build build -j
+      - name: Test
+        run: ./build/tests/mith_unit_tests

@@ -55,7 +55,19 @@ bool verify_signature(const IdentityKey& pk,
     std::vector<std::uint8_t> sm(IdentityKey::SIGNATURE_LEN + payload_size);
     std::memcpy(sm.data(), signature, IdentityKey::SIGNATURE_LEN);
     if (payload_size > 0) {
+        // GCC -Wstringop-overflow= chokes here computing an absurd upper
+        // bound on payload_size; the guard above + sm's pre-sized
+        // capacity already cover the actual bound. Suppress the false
+        // positive on the one memcpy that trips it.
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+#pragma GCC diagnostic ignored "-Wrestrict"
+#endif
         std::memcpy(sm.data() + IdentityKey::SIGNATURE_LEN, payload, payload_size);
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
     }
 
     std::vector<std::uint8_t> m_out(sm.size());
