@@ -202,9 +202,12 @@ SchedulerStatus World::register_system(std::unique_ptr<System> system) {
 }
 
 void World::set_trace_sink(TraceSink* sink) noexcept {
+    sink_ = sink;
     registry_.set_trace_sink(sink);
     scheduler_.set_trace_sink(sink);
 }
+
+TraceSink* World::trace_sink() const noexcept { return sink_; }
 
 void World::rotate_identity() noexcept {
     if (!initialized_) {

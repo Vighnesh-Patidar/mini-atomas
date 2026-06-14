@@ -44,6 +44,8 @@ add_library(mith STATIC
     src/systems/discovery_system.cpp
     src/systems/clock_sync_system.cpp
     src/systems/partition_merge_system.cpp
+    src/behaviour/action_validator_system.cpp
+    src/behaviour/builtin_action_handlers.cpp
     src/sim/sim_clock.cpp
     src/sim/sim_bus.cpp
 )

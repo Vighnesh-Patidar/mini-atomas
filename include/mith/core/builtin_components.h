@@ -19,6 +19,7 @@
 #include "mith/core/component.h"
 #include "mith/identity/hierarchical_id.h"
 
+#include <array>
 #include <cstdint>
 
 namespace mith {
@@ -146,6 +147,16 @@ struct ActionQueueComponent : HotComponent<ActionQueueComponent> {
     BoundedQueue<Action, CAPACITY, OverflowPolicy::DropNewest> queue;
     std::uint32_t permission_rejections_total = 0;
     std::uint64_t last_rejection_tick         = 0;
+
+    // Validated-actions buffer (§6.4). ActionValidatorSystem drains
+    // `queue` each tick, copies actions that pass the permission check
+    // into `validated`, and increments validated_count. Handler systems
+    // iterate validated[0..validated_count) and process only the
+    // entries matching their ActionTypeID. The buffer is overwritten
+    // (not appended to) on the next validator tick — handlers must
+    // consume within the same tick.
+    std::array<Action, CAPACITY> validated{};
+    std::uint8_t                 validated_count = 0;
 };
 
 // §4.4 — inbound messages drained from the transport (§7.5) by

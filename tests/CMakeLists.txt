@@ -39,6 +39,7 @@ add_executable(mith_unit_tests
     unit/test_partition_merge_system.cpp
     unit/test_serial_framing.cpp
     unit/test_neighbour_table_spatial.cpp
+    unit/test_action_handler_registry.cpp
     integration/test_serial_transport_integration.cpp
 )
 

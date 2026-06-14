@@ -177,7 +177,8 @@ public:
     // Forwards to both registry and scheduler. The same sink receives
     // component_registered (from registry) and tick_completed (from
     // scheduler) events. Pass nullptr to clear.
-    void set_trace_sink(TraceSink* sink) noexcept;
+    void       set_trace_sink(TraceSink* sink) noexcept;
+    TraceSink* trace_sink() const noexcept;
 
     // Message router (v0.3, §16). Systems can register a predicate
     // handler — BeaconSystem consults the handler list when draining
@@ -278,6 +279,7 @@ private:
     std::optional<IdentityCertificate>   last_cert_;
     std::vector<MessageHandler>          message_handlers_;
     PeerKeyRegistry                      peer_keys_;
+    TraceSink*                           sink_ = nullptr;
     float                                clock_offset_s_ = 0.0f;
     float                                merge_window_remaining_s_ = 0.0f;
 #ifdef MITH_AUTH_ENABLED
