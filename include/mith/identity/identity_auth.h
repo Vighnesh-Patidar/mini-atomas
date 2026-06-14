@@ -12,6 +12,7 @@
 // land in v0.2 behind MITH_ENABLE_AUTH. The interface and key shape are
 // frozen now so v0.2 plugs in without API changes.
 
+#include "mith/api_stability.h"
 #include "mith/identity/hierarchical_id.h"
 
 #include <array>
@@ -23,7 +24,7 @@ namespace mith {
 // Public key material for one identity. The private key never appears in
 // any serialised form and lives in a separate sender-only struct that's
 // not part of the wire format (§3.3).
-struct IdentityKey {
+struct MITH_STABLE_API IdentityKey {
     static constexpr std::size_t PUBLIC_KEY_LEN = 32;   // Ed25519
     static constexpr std::size_t SIGNATURE_LEN  = 64;   // Ed25519
 
@@ -38,7 +39,7 @@ struct IdentityKey {
 //     identities where UnitID = BLAKE3(public_key)[0..16]).
 //
 // pointer+size on the byte buffers (not std::span — we're C++17).
-class IdentityVerifier {
+class MITH_STABLE_API IdentityVerifier {
 public:
     virtual ~IdentityVerifier() = default;
 

@@ -24,6 +24,7 @@
 //     built-in queue is FaultTrigger; users can plumb their own via
 //     report_fault() until the hook lands).
 
+#include "mith/api_stability.h"
 #include "mith/core/system.h"
 
 #include <cstdint>
@@ -32,7 +33,7 @@ namespace mith {
 
 class World;
 
-class FaultMonitorSystem : public System {
+class MITH_STABLE_API FaultMonitorSystem : public System {
 public:
     static constexpr std::uint32_t NORMAL_STATE   = 0;
     static constexpr std::uint32_t DEGRADED_STATE = 1;

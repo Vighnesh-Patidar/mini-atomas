@@ -17,6 +17,7 @@
 // SwarmID indicates broadcast; BROADCAST_ID is the canonical "any swarm"
 // broadcast sentinel.
 
+#include "mith/api_stability.h"
 #include "mith/identity/hierarchical_id.h"
 
 #include <array>
@@ -56,7 +57,7 @@ inline constexpr bool is_broadcast(const HierarchicalID& id) noexcept {
     return id.unit_id.is_nil();
 }
 
-struct Message {
+struct MITH_STABLE_API Message {
     static constexpr std::size_t PAYLOAD_SIZE = 128;
 
     HierarchicalID                            sender{};

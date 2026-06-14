@@ -16,6 +16,7 @@
 // Does NOT integrate position — that's a separate KinematicsSystem (lands
 // alongside the flocking demo).
 
+#include "mith/api_stability.h"
 #include "mith/core/system.h"
 
 namespace mith {
@@ -23,7 +24,7 @@ namespace mith {
 class World;
 class NeighbourTable;
 
-class FlockingSystem : public System {
+class MITH_STABLE_API FlockingSystem : public System {
 public:
     struct Params {
         float separation_radius_m  = 5.0f;

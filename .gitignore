@@ -5,6 +5,9 @@ cmake-build-*/
 out/
 _deps/
 
+# Doxygen output
+docs/api/html/
+
 # CMake
 CMakeCache.txt
 CMakeFiles/

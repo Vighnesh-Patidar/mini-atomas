@@ -19,6 +19,7 @@
 // of intent — populate it if your action provider wants to communicate
 // expected writes to other tooling.
 
+#include "mith/api_stability.h"
 #include "mith/behaviour/action_type.h"
 #include "mith/core/component.h"            // ComponentTypeID
 #include "mith/identity/hierarchical_id.h"  // HierarchicalID
@@ -28,7 +29,7 @@
 
 namespace mith {
 
-struct Action {
+struct MITH_STABLE_API Action {
     static constexpr std::size_t MAX_MODIFIES   = 4;
     static constexpr std::size_t PARAMS_SIZE    = 64;
 

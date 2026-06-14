@@ -21,6 +21,7 @@
 // framing parser, route fully-decoded frames into per-channel inboxes
 // by udp_wire tag.
 
+#include "mith/api_stability.h"
 #include "mith/comms/transport.h"
 #include "mith/comms/serial_framing.h"
 
@@ -30,7 +31,7 @@
 
 namespace mith {
 
-class SerialTransport : public TransportLayer {
+class MITH_EXPERIMENTAL_API SerialTransport : public TransportLayer {
 public:
     // Open `device` (e.g. "/dev/ttyUSB0") at `baud_rate` and return a
     // ready transport. Returns nullptr on any syscall failure.

@@ -12,6 +12,7 @@
 // §6 implementation work — this header carries only the IDs because
 // PermissionMaskComponent (§4.4) needs them now.
 
+#include "mith/api_stability.h"
 #include <cstdint>
 
 namespace mith {

@@ -1,0 +1,109 @@
+# Doxygen configuration for MithAtomas.
+#
+# Run via:
+#   scripts/build_docs.sh
+# Or directly:
+#   doxygen Doxyfile
+
+PROJECT_NAME           = "MithAtomas"
+PROJECT_NUMBER         = "0.3.0"
+PROJECT_BRIEF          = "Decentralised swarm robotics orchestration runtime — C++17"
+
+OUTPUT_DIRECTORY       = docs/api
+CREATE_SUBDIRS         = NO
+ALLOW_UNICODE_NAMES    = YES
+OUTPUT_LANGUAGE        = English
+
+# --------- What to document ---------------------------------------------
+INPUT                  = README.md docs/SEMVER.md include src
+INPUT_ENCODING         = UTF-8
+RECURSIVE              = YES
+EXCLUDE                = third_party tests examples build qa-report
+EXCLUDE_SYMLINKS       = YES
+FILE_PATTERNS          = *.h *.hpp *.cpp *.md
+USE_MDFILE_AS_MAINPAGE = README.md
+MARKDOWN_SUPPORT       = YES
+
+# --------- Extraction policy --------------------------------------------
+# v1.0 first-pass: extract everything in the headers so missing comments
+# show up as blank entries (encourages incremental commenting). Internal
+# / detail items get the same treatment; the SEMVER.md page tells readers
+# how to interpret each surface's tier.
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = NO
+EXTRACT_PACKAGE        = NO
+EXTRACT_STATIC         = YES
+EXTRACT_LOCAL_CLASSES  = YES
+EXTRACT_ANON_NSPACES   = NO
+HIDE_UNDOC_MEMBERS     = NO
+HIDE_UNDOC_CLASSES     = NO
+INTERNAL_DOCS          = NO
+
+# --------- Stability-marker macros --------------------------------------
+# Strip the empty marker macros so the documentation reads cleanly.
+# Future versions may expand these to attribute strings; the
+# PREDEFINED + MACRO_EXPANSION blocks keep that change graceful.
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = YES
+PREDEFINED             = MITH_STABLE_API= \
+                         MITH_EXPERIMENTAL_API= \
+                         MITH_INTERNAL= \
+                         MITH_AUTH_ENABLED \
+                         MITH_UDP_ENABLED \
+                         MITH_SERIAL_ENABLED
+
+# --------- Output formats ----------------------------------------------
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+GENERATE_XML           = NO
+HTML_OUTPUT            = html
+HTML_FILE_EXTENSION    = .html
+HTML_DYNAMIC_MENUS     = YES
+HTML_DYNAMIC_SECTIONS  = YES
+GENERATE_TREEVIEW      = YES
+DISABLE_INDEX          = NO
+FULL_SIDEBAR           = NO
+ENUM_VALUES_PER_LINE   = 1
+
+# --------- Source browser ----------------------------------------------
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = NO
+STRIP_CODE_COMMENTS    = NO
+REFERENCED_BY_RELATION = YES
+REFERENCES_RELATION    = YES
+REFERENCES_LINK_SOURCE = YES
+
+# --------- Diagnostics --------------------------------------------------
+QUIET                  = NO
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = NO   # first pass — keep noise low
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = NO
+WARN_AS_ERROR          = NO
+
+# --------- Misc ---------------------------------------------------------
+JAVADOC_AUTOBRIEF      = YES
+QT_AUTOBRIEF           = NO
+MULTILINE_CPP_IS_BRIEF = NO
+INHERIT_DOCS           = YES
+SEPARATE_MEMBER_PAGES  = NO
+TAB_SIZE               = 4
+ALIASES                =
+TYPEDEF_HIDES_STRUCT   = NO
+
+# --------- Graphs (skip if dot not installed) --------------------------
+HAVE_DOT               = YES
+DOT_NUM_THREADS        = 0
+CLASS_GRAPH            = YES
+COLLABORATION_GRAPH    = NO
+GROUP_GRAPHS           = YES
+UML_LOOK               = NO
+TEMPLATE_RELATIONS     = YES
+INCLUDE_GRAPH          = YES
+INCLUDED_BY_GRAPH      = NO
+CALL_GRAPH             = NO
+CALLER_GRAPH           = NO
+DIRECTORY_GRAPH        = YES
+DOT_IMAGE_FORMAT       = svg
+INTERACTIVE_SVG        = YES

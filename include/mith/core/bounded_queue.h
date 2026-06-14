@@ -33,6 +33,7 @@
 // noexcept throughout. No allocation (uses std::array storage). T must be
 // default-constructible and nothrow-movable.
 
+#include "mith/api_stability.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>

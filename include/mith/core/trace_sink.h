@@ -15,6 +15,7 @@
 // All TraceField string_views must outlive the emit() call. Sinks read them
 // synchronously and do not retain pointers.
 
+#include "mith/api_stability.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -79,7 +80,7 @@ struct TraceField {
     }
 };
 
-class TraceSink {
+class MITH_STABLE_API TraceSink {
 public:
     virtual ~TraceSink() = default;
 
@@ -114,7 +115,7 @@ public:
 
 // Default sink: one JSON object per line to a FILE* (stderr by default).
 // Caller owns the FILE* lifetime — sink does not close it.
-class JsonTraceSink : public TraceSink {
+class MITH_STABLE_API JsonTraceSink : public TraceSink {
 public:
     JsonTraceSink() noexcept;
     explicit JsonTraceSink(std::FILE* dest) noexcept;
@@ -139,7 +140,7 @@ private:
 
 // No-op sink. Use when trace_level is Off or in tests that don't care
 // about output.
-class NullTraceSink : public TraceSink {
+class MITH_STABLE_API NullTraceSink : public TraceSink {
 public:
     using TraceSink::emit;
     void emit(TraceLevel,

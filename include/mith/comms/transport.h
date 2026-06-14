@@ -26,6 +26,7 @@
 // inheritance from a tiny TransportBase — implementations override it
 // once, and the same function answers for either channel.
 
+#include "mith/api_stability.h"
 #include "mith/comms/message.h"
 #include "mith/comms/state_vector.h"
 
@@ -33,7 +34,7 @@
 
 namespace mith {
 
-class TransportBase {
+class MITH_STABLE_API TransportBase {
 public:
     virtual ~TransportBase() = default;
 
@@ -42,7 +43,7 @@ public:
     virtual bool is_healthy() const = 0;
 };
 
-class BeaconTransport : public virtual TransportBase {
+class MITH_STABLE_API BeaconTransport : public virtual TransportBase {
 public:
     virtual bool send_beacon(const StateVector& sv)               = 0;
     virtual void poll_beacons(std::vector<StateVector>& out)      = 0;
@@ -53,7 +54,7 @@ public:
     virtual bool supports_beacons() const noexcept { return true; }
 };
 
-class MessageTransport : public virtual TransportBase {
+class MITH_STABLE_API MessageTransport : public virtual TransportBase {
 public:
     virtual bool send_message(const Message& msg)                 = 0;
     virtual void poll_messages(std::vector<Message>& out)         = 0;
@@ -63,7 +64,7 @@ public:
 
 // Combined transport — carries both channels via a single backend.
 // SimTransport, UDPMulticastTransport (v0.2), SerialTransport (v0.3).
-class TransportLayer : public BeaconTransport, public MessageTransport {
+class MITH_STABLE_API TransportLayer : public BeaconTransport, public MessageTransport {
     // No new methods. Virtual inheritance from TransportBase collapses
     // is_healthy() into a single slot so concrete impls override once.
 };

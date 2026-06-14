@@ -22,6 +22,7 @@
 // (§3.3) interface — drops into the transport layer's signed-mode path
 // once a key-resolution side table is in place (v0.2 BeaconSystem update).
 
+#include "mith/api_stability.h"
 #include "mith/identity/identity_auth.h"
 
 #include <array>
@@ -64,7 +65,7 @@ bool verify_signature(const IdentityKey& pk,
 // transport / BeaconSystem when v0.2 wires it up). For v0.2 first slice
 // the verifier accepts a single peer registration via add_peer() — the
 // fuller key-resolution path lands alongside signed-mode beacons.
-class Ed25519IdentityVerifier : public IdentityVerifier {
+class MITH_STABLE_API Ed25519IdentityVerifier : public IdentityVerifier {
 public:
     Ed25519IdentityVerifier() = default;
 

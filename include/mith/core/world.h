@@ -24,6 +24,7 @@
 //   - create_entity() (degenerate at N=1; will be a stub returning
 //     self_id() when added)
 
+#include "mith/api_stability.h"
 #include "mith/comms/message.h"
 #include "mith/comms/neighbour_table.h"
 #include "mith/comms/peer_key_registry.h"
@@ -55,7 +56,7 @@ class MessageTransport;
 
 // Mirrors §8 WorldConfig. SwarmID 0 is reserved (broadcast / unset);
 // production deployments use 1..0xFFFE.
-struct WorldConfig {
+struct MITH_STABLE_API WorldConfig {
     SwarmID  swarm_id            = 1;
     float    tick_rate_hz        = 20.0f;
     float    beacon_rate_hz      = 10.0f;
@@ -82,7 +83,7 @@ struct WorldConfig {
     float identity_rotation_period_s = 60.0f;
 };
 
-class World {
+class MITH_STABLE_API World {
 public:
     explicit World(WorldConfig config) noexcept;
 

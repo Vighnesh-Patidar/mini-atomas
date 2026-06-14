@@ -170,3 +170,28 @@ jobs:
         run: cmake --build build -j
       - name: Test
         run: ./build/tests/mith_unit_tests
+
+  # -------------------------------------------------------------------------
+  # Doxygen — verifies the API docs build without errors and uploads the
+  # generated HTML as an artifact. A separate GH Pages workflow can
+  # promote this artifact to a public docs site when desired.
+  # -------------------------------------------------------------------------
+  docs:
+    name: doxygen
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install doxygen + graphviz
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y doxygen graphviz
+      - name: Build docs
+        run: |
+          doxygen Doxyfile 2>&1 | tee /tmp/doxygen-build.log
+          warn_count=$(grep -ci "warning:" /tmp/doxygen-build.log || true)
+          echo "Doxygen warnings: $warn_count"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: api-docs
+          path: docs/api/html
+          retention-days: 14

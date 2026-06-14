@@ -9,6 +9,7 @@
 // No exceptions thrown anywhere (per §15 design constraints). Malformed
 // string input to from_string() returns std::nullopt.
 
+#include "mith/api_stability.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -19,7 +20,7 @@
 
 namespace mith {
 
-class UUID {
+class MITH_STABLE_API UUID {
 public:
     static constexpr std::size_t SIZE = 16;
     using bytes_type = std::array<std::uint8_t, SIZE>;

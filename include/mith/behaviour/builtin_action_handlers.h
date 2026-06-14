@@ -15,6 +15,7 @@
 // to observability — having a handler that "consumes" them lets the
 // trace event count match).
 
+#include "mith/api_stability.h"
 #include "mith/core/system.h"
 
 namespace mith {
@@ -25,7 +26,7 @@ class MessageTransport;
 // MOVE: writes VelocityComponent (target velocity vector — KinematicsSystem
 // integrates into PositionComponent the next tick).
 // Action::params layout (little-endian): vx (f32), vy (f32), vz (f32).
-class MoveActionHandler : public System {
+class MITH_STABLE_API MoveActionHandler : public System {
 public:
     explicit MoveActionHandler(World& world) noexcept;
     SystemDescriptor describe() const override;
@@ -44,7 +45,7 @@ private:
 // Action::params layout: type (u32 LE), seq (u32 LE), then up to
 // Message::PAYLOAD_SIZE - 8 bytes of payload (mission-defined).
 // Action::target is used as Message::recipient (broadcast if nil).
-class TransmitActionHandler : public System {
+class MITH_STABLE_API TransmitActionHandler : public System {
 public:
     explicit TransmitActionHandler(World& world) noexcept;
     SystemDescriptor describe() const override;
@@ -62,7 +63,7 @@ private:
 
 // IDLE / HOVER: both action types are claimed by this single handler.
 // No declared writes; just bumps handled_ for observability.
-class HoverActionHandler : public System {
+class MITH_STABLE_API HoverActionHandler : public System {
 public:
     explicit HoverActionHandler(World& world) noexcept;
     SystemDescriptor describe() const override;

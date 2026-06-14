@@ -14,6 +14,7 @@
 // validator writes ActionQueueComponent; handlers read it; the DAG puts
 // the writer before all readers within a tick).
 
+#include "mith/api_stability.h"
 #include "mith/core/system.h"
 
 #include <cstdint>
@@ -23,7 +24,7 @@ namespace mith {
 class World;
 class TraceSink;
 
-class ActionValidatorSystem : public System {
+class MITH_STABLE_API ActionValidatorSystem : public System {
 public:
     explicit ActionValidatorSystem(World& world) noexcept;
 

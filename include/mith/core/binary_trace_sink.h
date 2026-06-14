@@ -34,6 +34,7 @@
 // strings as such. Anything that needs full strings should use
 // JsonTraceSink on the SoC tier.
 
+#include "mith/api_stability.h"
 #include "mith/core/trace_sink.h"
 
 #include <atomic>
@@ -43,7 +44,7 @@
 
 namespace mith {
 
-class BinaryTraceSink : public TraceSink {
+class MITH_EXPERIMENTAL_API BinaryTraceSink : public TraceSink {
 public:
     static constexpr std::size_t FRAME_BYTES   = 256;
     static constexpr std::size_t MAX_NAME_LEN  = 64;

@@ -21,6 +21,7 @@
 // enough to converge via standard threshold logic on the freshly
 // merged peer set.
 
+#include "mith/api_stability.h"
 #include "mith/core/system.h"
 
 #include <cstdint>
@@ -30,7 +31,7 @@ namespace mith {
 class World;
 class NeighbourTable;
 
-class PartitionMergeSystem : public System {
+class MITH_EXPERIMENTAL_API PartitionMergeSystem : public System {
 public:
     struct Params {
         // Minimum neighbour-count increase from one tick to the next to

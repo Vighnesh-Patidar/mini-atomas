@@ -8,11 +8,12 @@
 // (F < K), so the new velocity computed this tick is the one that moves
 // the robot. Default-constructible — no World reference needed.
 
+#include "mith/api_stability.h"
 #include "mith/core/system.h"
 
 namespace mith {
 
-class KinematicsSystem : public System {
+class MITH_STABLE_API KinematicsSystem : public System {
 public:
     KinematicsSystem() noexcept = default;
 

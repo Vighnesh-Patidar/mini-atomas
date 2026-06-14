@@ -14,6 +14,7 @@
 // If the World has no transport, BeaconSystem still ages out neighbours
 // each tick but skips send/poll (no-op transport path).
 
+#include "mith/api_stability.h"
 #include "mith/core/system.h"
 
 #include <cstdint>
@@ -25,7 +26,7 @@ class NeighbourTable;
 class BeaconTransport;
 class MessageTransport;
 
-class BeaconSystem : public System {
+class MITH_STABLE_API BeaconSystem : public System {
 public:
     explicit BeaconSystem(World& world) noexcept;
 

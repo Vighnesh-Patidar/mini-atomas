@@ -21,6 +21,7 @@
 // the first tick(). Registering a system after build_graph() invalidates the
 // built state; the caller must rebuild before ticking again.
 
+#include "mith/api_stability.h"
 #include "mith/core/system.h"
 
 #include <cstddef>
@@ -68,7 +69,7 @@ namespace detail {
 
 } // namespace detail
 
-class SystemScheduler {
+class MITH_STABLE_API SystemScheduler {
 public:
     explicit SystemScheduler(SchedulerMode mode = SchedulerMode::Sequential,
                               std::size_t   thread_pool_size = 0) noexcept;

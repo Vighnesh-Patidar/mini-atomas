@@ -12,6 +12,7 @@
 // NOT shipped over beacons; they're not part of "what a neighbour knows
 // about you."
 
+#include "mith/api_stability.h"
 #include "mith/core/builtin_components.h"
 #include "mith/identity/hierarchical_id.h"
 #include "mith/identity/identity_auth.h"
@@ -28,7 +29,7 @@ namespace mith {
 // receivers skip verification. In signed mode (MITH_AUTH_ENABLED + a
 // keypair on the sender) the fields are populated by BeaconSystem
 // before send, and verified on receive against a TOFU per-HID cache.
-struct StateVector {
+struct MITH_STABLE_API StateVector {
     HierarchicalID          id;
     PositionComponent       position;
     VelocityComponent       velocity;

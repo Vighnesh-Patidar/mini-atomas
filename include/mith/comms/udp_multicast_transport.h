@@ -24,6 +24,7 @@
 // needed; the transport itself surfaces health via is_healthy() (false
 // once an unrecoverable socket error is observed).
 
+#include "mith/api_stability.h"
 #include "mith/comms/transport.h"
 #include "mith/identity/hierarchical_id.h"
 
@@ -33,7 +34,7 @@
 
 namespace mith {
 
-class UDPMulticastTransport : public TransportLayer {
+class MITH_EXPERIMENTAL_API UDPMulticastTransport : public TransportLayer {
 public:
     struct Config {
         std::string   group_address      = "239.10.20.30"; // IPv4 admin-scoped

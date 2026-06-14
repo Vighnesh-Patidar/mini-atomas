@@ -22,6 +22,7 @@
 // low hundreds), linear scan for upsert lookup is fine. A spatial index
 // lands in v0.3 (§16) when 1000-entity benchmarks demand it.
 
+#include "mith/api_stability.h"
 #include "mith/comms/state_vector.h"
 #include "mith/core/builtin_components.h"
 #include "mith/identity/hierarchical_id.h"
@@ -41,7 +42,7 @@ namespace mith {
 // std::isnan(), not equality (NaN != NaN).
 inline const float UNKNOWN_RSSI = std::numeric_limits<float>::quiet_NaN();
 
-class NeighbourTable {
+class MITH_STABLE_API NeighbourTable {
 public:
     struct Entry {
         HierarchicalID          hid;

@@ -17,6 +17,7 @@
 // need conditional access; only meaningful when MITH_AUTH_ENABLED runs
 // the signed paths.
 
+#include "mith/api_stability.h"
 #include "mith/identity/hierarchical_id.h"
 #include "mith/identity/identity_auth.h"
 
@@ -26,7 +27,7 @@
 
 namespace mith {
 
-class PeerKeyRegistry {
+class MITH_STABLE_API PeerKeyRegistry {
 public:
     // Pin (hid, key) if hid is not already in the registry, or if it's
     // already pinned with the same key. Returns:

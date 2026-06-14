@@ -33,6 +33,7 @@
 // bug — the registry aborts with a structured message rather than ignoring
 // or returning a sentinel.
 
+#include "mith/api_stability.h"
 #include "mith/core/component.h"
 #include "mith/core/entity.h"
 #include "mith/core/entity_snapshot.h"
@@ -120,7 +121,7 @@ private:
 
 } // namespace detail
 
-class EntityRegistry {
+class MITH_STABLE_API EntityRegistry {
 public:
     explicit EntityRegistry(ComponentRegistrationPolicy policy
                               = ComponentRegistrationPolicy::LockAfterInit) noexcept;

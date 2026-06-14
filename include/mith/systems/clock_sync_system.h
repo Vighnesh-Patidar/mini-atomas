@@ -23,6 +23,7 @@
 // Pre-clock-sync foundation only — partition-merge reconciliation
 // (epoch-leader / version-vector) is a later v0.3 slice.
 
+#include "mith/api_stability.h"
 #include "mith/core/system.h"
 
 #include <cstdint>
@@ -32,7 +33,7 @@ namespace mith {
 class World;
 class NeighbourTable;
 
-class ClockSyncSystem : public System {
+class MITH_STABLE_API ClockSyncSystem : public System {
 public:
     struct Params {
         // Fraction of the mean offset gap applied per tick. 0.0 disables

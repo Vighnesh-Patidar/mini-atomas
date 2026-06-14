@@ -20,6 +20,7 @@
 // work in v0.2 — keeping it out of §3 prevents the identity layer from owning
 // addressing semantics it shouldn't.
 
+#include "mith/api_stability.h"
 #include "mith/identity/uuid.h"
 
 #include <cstddef>
@@ -33,7 +34,7 @@ namespace mith {
 
 using SwarmID = std::uint16_t;
 
-struct HierarchicalID {
+struct MITH_STABLE_API HierarchicalID {
     SwarmID swarm_id = 0;
     UUID    unit_id;
 

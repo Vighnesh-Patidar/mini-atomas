@@ -13,6 +13,7 @@
 // (lexicographic on name in Sequential mode) and, in the future Parallel
 // mode, to build a hazard DAG for concurrent dispatch.
 
+#include "mith/api_stability.h"
 #include "mith/core/component.h"
 #include "mith/core/swarm_context.h"
 
@@ -38,7 +39,7 @@ enum class ResourceID : std::uint16_t {
 
 // Two-axis hazard declaration. Empty vectors are valid (a system that
 // touches no shared state — e.g. a heartbeat — declares no hazards).
-struct SystemDescriptor {
+struct MITH_STABLE_API SystemDescriptor {
     std::string                  name;
     std::vector<ComponentTypeID> reads_components;
     std::vector<ComponentTypeID> writes_components;
@@ -46,7 +47,7 @@ struct SystemDescriptor {
     std::vector<ResourceID>      writes_resources;
 };
 
-class System {
+class MITH_STABLE_API System {
 public:
     virtual ~System() = default;
 

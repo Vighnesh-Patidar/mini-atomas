@@ -29,6 +29,7 @@
 // Deterministic: same observation + delivery schedule → same transition
 // tick. Pairs cleanly with SimBus's Sequential default.
 
+#include "mith/api_stability.h"
 #include "mith/comms/message.h"
 #include "mith/core/system.h"
 #include "mith/identity/hierarchical_id.h"
@@ -46,7 +47,7 @@ enum class DiscoveryState : std::uint8_t {
     Active        = 1,
 };
 
-class DiscoverySystem : public System {
+class MITH_STABLE_API DiscoverySystem : public System {
 public:
     struct Params {
         // Minimum number of distinct peers observed in the NeighbourTable

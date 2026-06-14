@@ -23,6 +23,7 @@
 // Deterministic by design: no randomness, no `std::random_device` call.
 // Sequential-mode SimBus + this system gives bit-identical traces.
 
+#include "mith/api_stability.h"
 #include "mith/core/system.h"
 #include "mith/core/builtin_components.h"
 
@@ -33,7 +34,7 @@ namespace mith {
 class World;
 class NeighbourTable;
 
-class TaskAllocSystem : public System {
+class MITH_STABLE_API TaskAllocSystem : public System {
 public:
     // Maximum number of distinct roles the system tracks. Anything beyond
     // is invisible to the threshold logic — the mission can still use
