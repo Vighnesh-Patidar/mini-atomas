@@ -31,6 +31,7 @@ add_executable(mith_unit_tests
     integration/test_swarm_lifecycle_integration.cpp
     integration/test_udp_multicast_integration.cpp
     unit/test_udp_wire.cpp
+    unit/test_discovery_system.cpp
 )
 
 target_link_libraries(mith_unit_tests PRIVATE mith::mith)
